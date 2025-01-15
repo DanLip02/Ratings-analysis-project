@@ -28,33 +28,38 @@ import networkx as nx
     https://docs.kanaries.net/topics/Streamlit/streamlit-plotly
 
 """
-expert = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
-          'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10, 'Рейтинг отозван': 11}
+# expert = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
+#           'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10, 'Рейтинг отозван': 11}
 # expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #                'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
-expert_test = {
-    'ruAAA': 1,
-    'ruAA+': 2,
-    'ruAA': 3,
-    'ruAA-': 4,
-    'ruA+': 5,
-    'ruA': 6,
-    'ruA-': 7,
-    'ruBBB+': 8,
-    'ruBBB': 9,
-    'ruBBB-': 10,
-    'ruBB+': 11,
-    'ruBB': 12,
-    'ruBB-': 13,
-    'ruB+': 14,
-    'ruB': 15,
-    'ruB-': 16,
-    'ruCCC': 17,
-    'ruCC': 18,
-    'ruC': 19,
-    'ruD': 20,
-    'Рейтинг отозван': 21}
+expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
+               'BB': 5, 'B': 6, 'C': 7, 'D': 8}
 
+group_expert = {'AAA': 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
+               'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
+# expert_test = {
+#     'ruAAA': 1,
+#     'ruAA+': 2,
+#     'ruAA': 3,
+#     'ruAA-': 4,
+#     'ruA+': 5,
+#     'ruA': 6,
+#     'ruA-': 7,
+#     'ruBBB+': 8,
+#     'ruBBB': 9,
+#     'ruBBB-': 10,
+#     'ruBB+': 11,
+#     'ruBB': 12,
+#     'ruBB-': 13,
+#     'ruB+': 14,
+#     'ruB': 15,
+#     'ruB-': 16,
+#     'ruCCC': 17,
+#     'ruCC': 18,
+#     'ruC': 19,
+#     'ruD': 20,
+#     # 'Рейтинг отозван': 21}
+# }
 # NCR_test = {
 #     'AAA.ru': 0,
 #     'AA+.ru': 1,
@@ -116,7 +121,7 @@ akra = {
     'CC(RU)': 17,
     'C(RU)': 18,
     'D(RU)': 19,
-    'Рейтинг отозван': 20
+    # 'Рейтинг отозван': 20
 }
 
 s_and_p = {
@@ -595,6 +600,7 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
     sum_mat = full_df.sum(axis=1)
     # st.write(full_df)
     # st.write(sum_mat)
+
     for ind in full_df.index:
         sum_ = sum_mat[ind]
         if sum_ == 0.0:
@@ -607,7 +613,7 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
     my_bar.empty()
 
     st.write(counter_CC_D)
-    return full_df
+    return [full_df, sum_mat]
 
 
 def get_state_by_time(data: pd.DataFrame, agency: str, start_date: str, step: dict, scale: list, col_ogrn, col_date, col_rating, n: int):
@@ -787,7 +793,7 @@ def matrix_migration(data: pd.DataFrame, agency: str, start_date: str, end_dates
     check_dict = {}
     pie_cont = {}
     check_ = {}
-    full_df = calculate_discrete_migr(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+    full_df = calculate_discrete_migr(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)[0]
 
     # full_df.to_excel(f'{directory}/discrete_markov_step={step}.xlsx')
     n = 0
@@ -1230,7 +1236,7 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
     # or return [result_full, full_df_2]
     return result_full
 
-
+# TODO check scale
 def time_cont(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, step: dict, directory, type_ogrn, type_date, type_rating):
     st.title('Markov process with continous time')
     delta = datetime.strptime(end_dates, "%Y-%m-%d") - datetime.strptime(start_date, "%Y-%m-%d")
@@ -1693,6 +1699,7 @@ def bayesian_metric(data: pd.DataFrame, agency: str, start_date: str, end_dates:
     time.sleep(1)
     my_bar.empty()
     return [Bayesint_trans_matrix, check_]
+
 def Bayes_migration(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
                      step: dict, type_ogrn, type_date, type_rating):
     st.title('Markov process with discrete time')
@@ -1983,10 +1990,189 @@ def aalen_johansen_metric(data: pd.DataFrame, agency: str, start_date: str, end_
     plt.savefig(f'aalen_johansen_{step}.jpg')
     plt.close()
 
+def get_conf_int_wald(df, sum_ratings):
+    z = 1.96
+
+    # Инициализируем матрицу для хранения доверительных интервалов
+    ci_lower = df.copy()
+    ci_upper = df.copy()
+
+    # Расчёт доверительных интервалов для каждого элемента
+    for i in range(df.shape[0]):  # По строкам
+        for j in range(df.shape[1]):  # По столбцам
+            p_ij = df.iloc[i, j]  # Вероятность P_{i->j}
+            n_i = sum_ratings[i]  # Общее число N_i для строки i
+
+            # Проверка на допустимость расчёта
+            if n_i > 0:
+                se_ij = np.sqrt(p_ij * (1 - p_ij) / n_i)  # Стандартная ошибка
+                ci_lower.iloc[i, j] = max(0, p_ij - z * se_ij)  # Нижняя граница
+                ci_upper.iloc[i, j] = min(1, p_ij + z * se_ij)  # Верхняя граница
+            else:
+                # Если N_i = 0, установить NaN
+                ci_lower.iloc[i, j] = np.nan
+                ci_upper.iloc[i, j] = np.nan
+
+    # Результаты: оригинальная матрица и доверительные интервалы
+    print("Матрица вероятностей:")
+    print(df)
+
+    print("\nНижние границы доверительных интервалов:")
+    print(ci_lower)
+
+    print("\nВерхние границы доверительных интервалов:")
+    print(ci_upper)
+
+    return (df, ci_lower, ci_upper)
 
 
+def deviation_matrix(df, ci_lower, ci_upper):
+    cv_matrix = (ci_upper - ci_lower) / df
+    # deviation_matrix = df.copy()
+    #
+    # # Рассчитываем отклонения
+    # for i in range(df.shape[0]):  # По строкам
+    #     for j in range(df.shape[1]):  # По столбцам
+    #         p_ij = df.iloc[i, j]  # Вероятность P_{i->j}
+    #         ci_l = ci_lower.iloc[i, j]  # Нижняя граница
+    #         ci_u = ci_upper.iloc[i, j]  # Верхняя граница
+    #         st.write(p_ij, ci_u, ci_l)
+    #         if pd.notna(p_ij) and pd.notna(ci_l) and pd.notna(ci_u):  # Проверка на NaN
+    #             st.write(True)
+    #             if p_ij < ci_l:  # Отклонение ниже интервала
+    #                 deviation_matrix.iloc[i, j] = (ci_l - p_ij) / ci_l
+    #                 st.write((ci_l - p_ij) / ci_l)
+    #             elif p_ij > ci_u:  # Отклонение выше интервала
+    #                 deviation_matrix.iloc[i, j] = (p_ij - ci_u) / ci_u
+    #                 st.write((ci_l - p_ij) / ci_l)
+    #             else:  # Если внутри интервала, отклонение = 0
+    #                 deviation_matrix.iloc[i, j] = 0
+    #                 st.write((ci_l - p_ij) / ci_l)
+    #         else:
+    #             deviation_matrix.iloc[i, j] = np.nan  # Если данные отсутствуют
+    #
+    # # Результат
+    # print("Отклонения вероятностей от доверительных интервалов:")
+    # print(deviation_matrix)
+    print(cv_matrix)
+    return cv_matrix
 
+def wald_migration(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
+                     step: dict, type_ogrn, type_date, type_rating):
 
+    st.title('Markov process with discrete time and Wald method')
+    agency_dict = {}
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    if agency == 'NCR':
+        agency_dict = NCR_test
+    if agency == 'AKRA':
+        agency_dict = akra
+    if agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    if agency == 'Fitch Ratings':
+        agency_dict = fitch
+    if agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    if agency == 'NRA':
+        agency_dict = nra
+
+    full_df, sum_rating = calculate_discrete_migr(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+    pie_cont = {}
+    check_ = {}
+    df, ci_lower, ci_upper = get_conf_int_wald(full_df, sum_rating)
+
+    dev_matrix = deviation_matrix(full_df, ci_lower, ci_upper)
+    # full_df = \
+    # calculate_discrete_migr(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)[0]
+
+    # full_df.to_excel(f'{directory}/discrete_markov_step={step}.xlsx')
+    n = 0
+    name = ''
+    # full_df.index = ['AAA','AA+', 'AA', 'AA-', 'A+', 'A','A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC', 'CC', 'C', 'D']
+    # full_df.columns = ['AAA','AA+', 'AA', 'AA-', 'A+', 'A','A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC', 'CC', 'C', 'D']
+    fig = plt.figure(figsize=(10, 10))
+    plot = sns.heatmap(ci_upper, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size": 11})
+    # plt.savefig(f'{directory}/discrete_markov_step={step}.jpg')
+    plt.close()
+
+    for col in full_df.columns:  # TODO redact by index
+        if full_df[col].sum() > 0:
+            fig_ = go.Figure(data=[go.Pie(labels=full_df.index[full_df[col] > 0].tolist(),
+                                          values=full_df[col][full_df[col] > 0])])
+            fig_.update_layout(
+                legend_title=f"{col} rating moved to:",
+                font=dict(
+                    family="Courier New, monospace",
+                    size=15,
+                    color="White"
+                )
+            )
+            pie_cont[col] = fig_
+
+    if st.checkbox('Display Pie chart of migration discrete matrix with Wald'):
+        pies = st.sidebar.multiselect('Choose ratings to see moves', pie_cont)
+        for pie_diag in pies:
+            st.plotly_chart(pie_cont[pie_diag], theme='streamlit')
+
+    if st.checkbox('Display graph of migration discrete matrix with Wald'):
+        HtmlFile = open(graph_matric_migration(full_df), 'r', encoding='utf-8')
+        source_code = HtmlFile.read()
+        components.html(source_code, height=650, width=650)
+
+    if st.checkbox('Display static graph of migration discrete matrix with Wald'):
+        st.set_option('deprecation.showPyplotGlobalUse', False)
+        st.pyplot(graph_matric_migration_stat(full_df))
+
+    if st.checkbox('Display migration discrete matrix with Wald'):
+        # full_df.to_excel(f'discrete_time_step={step}.xlsx')
+        st.pyplot(fig)
+        fig.savefig((f'results/{agency}/images/discrete_step={step}_{datetime.now().strftime('%Y-%m-%d')}_with_Wald.jpg'))
+
+    if st.checkbox('Display predict discr. migration matrix with Wald'):
+        fig = plt.figure(figsize=(10, 10))
+        n = st.number_input('Enter number', max_value=1000, min_value=2)
+        check_1 = np.linalg.matrix_power(full_df, n)
+        plot = sns.heatmap(check_1, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size": 11})
+        # plt.savefig(f'{directory}/time_cont_step={step}_second_avar.jpg')
+        st.pyplot(fig)
+        fig.savefig(
+            (f'results/{agency}/images/predict_{n}_discrete_step={step}_{datetime.now().strftime('%Y-%m-%d')}_with_Wald.jpg'))
+        plt.close()
+
+    if st.checkbox('Get predict of migration discrete matrix with Wald'):
+        # get_state_by_time(data, agency, start_date, scale)
+        n = st.number_input('Enter number', max_value=100, min_value=2)
+        check_1 = np.linalg.matrix_power(full_df, n)
+        st.write(pd.DataFrame(check_1, columns=list(agency_dict.keys()), index=list(agency_dict.keys())))
+        check_1 = pd.DataFrame(check_1, columns=list(agency_dict.keys()), index=list(agency_dict.keys()))
+        name = f"results/{agency}/discrete_time/predict_discrete_step={step}_predict={n}_{datetime.now().strftime('%Y-%m-%d')}_with_Wald.xlsx"
+        check_1.to_excel(name)
+        f = Fitter(check_1,
+                   distributions=['cauchy', 'chi2', 'expon', 'exponpow', 'gamma', 'lognorm', 'norm', 'powerlaw',
+                                  'rayleigh', 'uniform', 'beta'])
+        f.fit()
+        distr_fit = f.summary()
+        st.write(distr_fit)
+        st.set_option('deprecation.showPyplotGlobalUse', False)
+        st.pyplot(f.plot_pdf())
+        st.pyplot(f.plot_pdf())
+
+    if st.checkbox('Display distribution of migration discrete matrix with Wald'):
+        # full_df = get_state_by_time(data, agency, date_to_check, step, scale)[0]
+        f = Fitter(full_df,
+                   distributions=['cauchy', 'chi2', 'expon', 'exponpow', 'gamma', 'lognorm', 'norm', 'powerlaw',
+                                  'rayleigh', 'uniform', 'beta'])
+        f.fit()
+        distr_fit = f.summary()
+        st.write(distr_fit)
+        st.pyplot(f.plot_pdf())
+        st.set_option('deprecation.showPyplotGlobalUse', False)
+        st.pyplot(f.plot_pdf())
+
+    if st.button('Download discrete matrix with Wald', key='download'):
+        full_df.to_excel(
+            f'results/{agency}/discrete_time/discrete_step={step}_{datetime.now().strftime('%Y-%m-%d')}_with_Wald.xlsx')
 
 if __name__ == '__main__':
     # Рейтинги кредитоспособности банков
@@ -1998,11 +2184,23 @@ if __name__ == '__main__':
     # data_1 = pd.read_excel('Output_without_dubl.xlsx')
     data = load_data(upload)
     # type_date = 'report_date'
-    type_date = 'new_dates'
-    type_ogrn = 'ogrn'
-    type_rating = 'rank'
-    # type_rating = 'rating'
+    # type_ogrn = ''
+    # type_date = 'new_dates'
+    # type_ogrn = 'ogrn'
+    # type_rating = 'rank'
     agency = st.sidebar.selectbox("Choose one agency to check", data['agency'].unique())
+    agency_dict_group = {'Expert RA': group_expert}
+    type_date = st.sidebar.selectbox("Choose date column", data.columns)
+    type_ogrn = st.sidebar.selectbox("Choose ogrn column", data.columns)
+    type_rating = st.sidebar.selectbox("Choose rating column", data.columns)
+
+    data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
+    type_rating_group = st.sidebar.selectbox("Choose grouped rating column (if needed)", data.columns)
+
+    if type_rating_group is not None:
+        type_rating = type_rating_group
+
+    # st.write(data[type_rating])
     # agency = 'Expert RA'
     data[type_date] = pd.to_datetime(data[type_date]).dt.strftime('%Y-%m-%d')
     try:
@@ -2025,13 +2223,18 @@ if __name__ == '__main__':
         step_ = st.sidebar.number_input('Enter step in years', min_value=1, max_value=12)
     else:
         step_ = st.sidebar.number_input('Enter step in years', min_value=1, max_value=365)
+
     step = {step_type: step_}
     date_to_check = st.sidebar.date_input('Choose date to check').strftime('%Y-%m-%d')
+
     if st.sidebar.checkbox('Markov process with discrete time'):
         matrix_migration(data, agency, start_date, end_date, scale, step, date_to_check, directory, type_ogrn, type_date, type_rating)
 
     if st.sidebar.checkbox('Markov process with continous time'):
         time_cont(data, agency, start_date, end_date, step, directory, type_ogrn, type_date, type_rating)
+
+    if st.sidebar.checkbox('Markov process with Wald method'):
+        wald_migration(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
     if st.sidebar.checkbox('Compare results'):
         n = st.number_input('Write number of each predict you want to do', min_value= 1, max_value = 1000)
