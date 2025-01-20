@@ -30,71 +30,71 @@ import networkx as nx
 """
 # expert = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #           'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10, 'Рейтинг отозван': 11}
-expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
-               'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
+# expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
+#                'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
 # expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #                'BB': 5, 'B': 6, 'C': 7, 'D': 8}
 
 group_expert = {'AAA': 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
                'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
-# expert_test = {
-#     'ruAAA': 1,
-#     'ruAA+': 2,
-#     'ruAA': 3,
-#     'ruAA-': 4,
-#     'ruA+': 5,
-#     'ruA': 6,
-#     'ruA-': 7,
-#     'ruBBB+': 8,
-#     'ruBBB': 9,
-#     'ruBBB-': 10,
-#     'ruBB+': 11,
-#     'ruBB': 12,
-#     'ruBB-': 13,
-#     'ruB+': 14,
-#     'ruB': 15,
-#     'ruB-': 16,
-#     'ruCCC': 17,
-#     'ruCC': 18,
-#     'ruC': 19,
-#     'ruD': 20,
-#     # 'Рейтинг отозван': 21}
-# }
-# NCR_test = {
-#     'AAA.ru': 0,
-#     'AA+.ru': 1,
-#     'AA.ru': 2,
-#     'AA-.ru': 3,
-#     'A+.ru': 4,
-#     'A.ru': 5,
-#     'A-.ru': 6,
-#     'BBB+.ru': 7,
-#     'BBB.ru': 8,
-#     'BBB-.ru': 9,
-#     'BB+.ru': 10,
-#     'BB.ru': 11,
-#     'BB-.ru': 12,
-#     'B+.ru': 13,
-#     'B.ru': 14,
-#     'B-.ru': 15,
-#     'CCC.ru': 16,
-#     'CC.ru': 17,
-#     'C.ru': 18,
-#     'D.ru': 19,
-#     'Рейтинг отозван': 20
-# }
-NCR_test = {
-    'AAA.ru': 1,
-    'AA.ru': 2,
-    'A.ru': 3,
-    'BBB.ru': 4,
-    'BB.ru': 5,
-    'B.ru': 6,
-    'CCC.ru': 7,
-    'CC.ru': 8,
-    'C.ru': 9,
-    'D.ru': 10,
+expert_test = {
+    'ruAAA': 1,
+    'ruAA+': 2,
+    'ruAA': 3,
+    'ruAA-': 4,
+    'ruA+': 5,
+    'ruA': 6,
+    'ruA-': 7,
+    'ruBBB+': 8,
+    'ruBBB': 9,
+    'ruBBB-': 10,
+    'ruBB+': 11,
+    'ruBB': 12,
+    'ruBB-': 13,
+    'ruB+': 14,
+    'ruB': 15,
+    'ruB-': 16,
+    'ruCCC': 17,
+    'ruCC': 18,
+    'ruC': 19,
+    'ruD': 20,
+    # 'Рейтинг отозван': 21}
 }
+NCR_test = {
+    'AAA.ru': 0,
+    'AA+.ru': 1,
+    'AA.ru': 2,
+    'AA-.ru': 3,
+    'A+.ru': 4,
+    'A.ru': 5,
+    'A-.ru': 6,
+    'BBB+.ru': 7,
+    'BBB.ru': 8,
+    'BBB-.ru': 9,
+    'BB+.ru': 10,
+    'BB.ru': 11,
+    'BB-.ru': 12,
+    'B+.ru': 13,
+    'B.ru': 14,
+    'B-.ru': 15,
+    'CCC.ru': 16,
+    'CC.ru': 17,
+    'C.ru': 18,
+    'D.ru': 19,
+    # 'Рейтинг отозван': 20
+}
+# NCR_test = {
+#     'AAA.ru': 1,
+#     'AA.ru': 2,
+#     'A.ru': 3,
+#     'BBB.ru': 4,
+#     'BB.ru': 5,
+#     'B.ru': 6,
+#     'CCC.ru': 7,
+#     'CC.ru': 8,
+#     'C.ru': 9,
+#     'D.ru': 10,
+# }
 # expert_test = {
 #     'A' : 1,
 #     'B' : 2,
@@ -561,12 +561,12 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
 
 
                     temp_local_df = temp_df.loc[temp_df[col_date] == temp_df[col_date][len(temp_df) - 1]]
-                    if len(temp_local_df) > 1 and 'отозван' in temp_local_df[col_rating].values:
-                        last = 'отозван'
+                    if len(temp_local_df) > 1 and 'Рейиинг отозван' in temp_local_df[col_rating].values:
+                        last = 'Рейтинг отозван'
                     else:
                         last = temp_df[col_rating][len(temp_df) - 1]
 
-                    if last == 'отозван':
+                    if last == 'Рейтинг отозван':
                         temp_local_df = temp_df.loc[temp_df[col_date] == temp_df[col_date][len(temp_df) - 1]]
                         if len(temp_local_df) > 1 and default[agency] in temp_local_df[col_rating].values:
                             last = default[agency]
@@ -790,6 +790,7 @@ def get_state_by_time(data: pd.DataFrame, agency: str, start_date: str, step: di
 def matrix_migration(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, date_to_check: str, directory, type_ogrn, type_date, type_rating):
     st.title('Markov process with discrete time')
+
     delta = datetime.strptime(end_dates, "%Y-%m-%d") - datetime.strptime(start_date, "%Y-%m-%d")
     agency_dict = {}
     if agency == 'Expert RA':
@@ -2204,15 +2205,17 @@ if __name__ == '__main__':
     # type_date = 'new_dates'
     # type_ogrn = 'ogrn'
     # type_rating = 'rank'
-    agency = st.sidebar.selectbox("Choose one agency to check", data['agency'].unique())
+    type_agency = st.sidebar.selectbox("Choose agency column", data.columns)
     agency_dict_group = {'Expert RA': group_expert}
     type_date = st.sidebar.selectbox("Choose date column", data.columns)
     type_ogrn = st.sidebar.selectbox("Choose ogrn column", data.columns)
     type_rating = st.sidebar.selectbox("Choose rating column", data.columns)
     type_field = st.sidebar.selectbox("Choose type column", data.columns)
+    scale = st.sidebar.selectbox("Choose scale column", data.columns)
 
+    agency = st.sidebar.selectbox("Choose one agency to check", data[type_agency].unique())
     _ro_type = st.sidebar.multiselect('Choose type of companies', data[type_field].unique())
-    data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
+    # data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
     type_rating_group = st.sidebar.selectbox("Choose grouped rating column (if needed)", data.columns)
 
     #TODO choose there to add group by method (column)
@@ -2238,7 +2241,7 @@ if __name__ == '__main__':
     # end_date = (datetime.strptime(start_date, "%Y-%m-%d") + relativedelta(years=2)).strftime('%Y-%m-%d')
     st.write(start_date, end_date)
     scale = st.sidebar.multiselect('Choose scale (Be careful, do not choose different scales)',
-                                   data[data['agency'] == agency]['scale'].unique())
+                                   data[data[type_agency] == agency][scale].unique())
     # TODO here matrix_migration is year-matrix migration
     step_type = st.sidebar.selectbox('Choose type of step', ['months', 'years', 'days'])
     step_ = None
