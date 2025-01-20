@@ -30,10 +30,10 @@ import networkx as nx
 """
 # expert = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #           'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10, 'Рейтинг отозван': 11}
-# expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
-#                'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
 expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
-               'BB': 5, 'B': 6, 'C': 7, 'D': 8}
+               'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
+# expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
+#                'BB': 5, 'B': 6, 'C': 7, 'D': 8}
 
 group_expert = {'AAA': 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
                'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
@@ -283,18 +283,34 @@ def ranking_ratings(data):
 
 
 def graph_matric_migration_stat(data):
+    # network = nx.DiGraph(directed=True)
+    # nodes = data.columns
+    # network.add_nodes_from(nodes)
+    # edges = []
+    # for col in data.columns:
+    #     for ind in data.index[data[col] > 0].tolist():
+    #         edges.append((col, ind, data[col][ind]))
+    #
+    # edges_final = []
+    # for tup in edges:
+    #     edges_final.append((tup[0], tup[1]))
+    # network.add_edges_from(edges_final)
+    # nx.draw_circular(network, with_labels=True, font_weight='bold')
     network = nx.DiGraph(directed=True)
-    nodes = data.columns
-    network.add_nodes_from(nodes)
-    edges = []
-    for col in data.columns:
-        for ind in data.index[data[col] > 0].tolist():
-            edges.append((col, ind, data[col][ind]))
 
-    edges_final = []
-    for tup in edges:
-        edges_final.append((tup[0], tup[1]))
-    network.add_edges_from(edges_final)
+    # Добавляем узлы
+    nodes = data.index.tolist()
+    network.add_nodes_from(nodes)
+
+    # Добавляем связи на основе строк
+    edges = []
+    for row in data.index:
+        for col in data.columns[data.loc[row] > 0].tolist():
+            edges.append((row, col))
+
+    network.add_edges_from(edges)
+
+    # Рисуем граф
     nx.draw_circular(network, with_labels=True, font_weight='bold')
     plt.show()
 
@@ -2193,13 +2209,22 @@ if __name__ == '__main__':
     type_date = st.sidebar.selectbox("Choose date column", data.columns)
     type_ogrn = st.sidebar.selectbox("Choose ogrn column", data.columns)
     type_rating = st.sidebar.selectbox("Choose rating column", data.columns)
+    type_field = st.sidebar.selectbox("Choose type column", data.columns)
 
+    _ro_type = st.sidebar.multiselect('Choose type of companies', data[type_field].unique())
     data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
     type_rating_group = st.sidebar.selectbox("Choose grouped rating column (if needed)", data.columns)
 
+    #TODO choose there to add group by method (column)
     if type_rating_group is not None:
         type_rating = type_rating_group
 
+    #TODO choose there to add field of companies
+    if len(_ro_type) != 0 and type_field is not None:
+        data = data[data[type_field].isin(_ro_type)]
+
+    st.write(data)
+    st.write(type_rating)
     # st.write(data[type_rating])
     # agency = 'Expert RA'
     data[type_date] = pd.to_datetime(data[type_date]).dt.strftime('%Y-%m-%d')
