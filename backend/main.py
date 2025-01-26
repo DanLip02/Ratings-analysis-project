@@ -30,36 +30,36 @@ import networkx as nx
 """
 # expert = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #           'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10, 'Рейтинг отозван': 11}
-# expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
-#                'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
+expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
+               'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
 # expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #                'BB': 5, 'B': 6, 'C': 7, 'D': 8}
 
 group_expert = {'AAA': 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
                'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
-expert_test = {
-    'ruAAA': 1,
-    'ruAA+': 2,
-    'ruAA': 3,
-    'ruAA-': 4,
-    'ruA+': 5,
-    'ruA': 6,
-    'ruA-': 7,
-    'ruBBB+': 8,
-    'ruBBB': 9,
-    'ruBBB-': 10,
-    'ruBB+': 11,
-    'ruBB': 12,
-    'ruBB-': 13,
-    'ruB+': 14,
-    'ruB': 15,
-    'ruB-': 16,
-    'ruCCC': 17,
-    'ruCC': 18,
-    'ruC': 19,
-    'ruD': 20,
-    # 'Рейтинг отозван': 21}
-}
+# expert_test = {
+#     'ruAAA': 1,
+#     'ruAA+': 2,
+#     'ruAA': 3,
+#     'ruAA-': 4,
+#     'ruA+': 5,
+#     'ruA': 6,
+#     'ruA-': 7,
+#     'ruBBB+': 8,
+#     'ruBBB': 9,
+#     'ruBBB-': 10,
+#     'ruBB+': 11,
+#     'ruBB': 12,
+#     'ruBB-': 13,
+#     'ruB+': 14,
+#     'ruB': 15,
+#     'ruB-': 16,
+#     'ruCCC': 17,
+#     'ruCC': 18,
+#     'ruC': 19,
+#     'ruD': 20,
+#     # 'Рейтинг отозван': 21}
+# }
 NCR_test = {
     'AAA.ru': 0,
     'AA+.ru': 1,
@@ -215,7 +215,7 @@ nra = {
     'CC|ru|': 18,
     'C|ru|': 19,
     'D|ru|': 20,
-    'Рейтинг отозван': 21
+    # 'Рейтинг отозван': 21
 }
 
 default = {'Expert RA': 'D', 'Fitch Ratings': 'D(rus)',
@@ -309,9 +309,24 @@ def graph_matric_migration_stat(data):
             edges.append((row, col))
 
     network.add_edges_from(edges)
+    # Настраиваем параметры для узлов и подписей
+    node_size = 1000  # Размер узлов
+    font_color = 'red'  # Цвет подписей
+    font_size = 20  # Размер текста подписей
+    node_color = 'none'  # Без заливки узлов
+    edge_color = 'white'  # Цвет контура узлов
 
     # Рисуем граф
-    nx.draw_circular(network, with_labels=True, font_weight='bold')
+    nx.draw_circular(
+        network,
+        with_labels=True,
+        font_weight='bold',
+        node_size=node_size,
+        font_color=font_color,
+        font_size=font_size,
+        node_color=node_color,  # Узлы без заливки
+        edgecolors=edge_color  # Цвет контура узлов
+    )
     plt.show()
 
 
@@ -2215,7 +2230,7 @@ if __name__ == '__main__':
 
     agency = st.sidebar.selectbox("Choose one agency to check", data[type_agency].unique())
     _ro_type = st.sidebar.multiselect('Choose type of companies', data[type_field].unique())
-    # data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
+    data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
     type_rating_group = st.sidebar.selectbox("Choose grouped rating column (if needed)", data.columns)
 
     #TODO choose there to add group by method (column)
