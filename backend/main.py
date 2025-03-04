@@ -1,3 +1,6 @@
+from math import gamma
+from turtledemo.penrose import start
+
 import numba
 import pandas as pd
 import numpy as np
@@ -9,7 +12,7 @@ import seaborn as sns
 from fitter import Fitter
 from pyvis.network import Network
 import streamlit.components.v1 as components
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime
 from scipy.linalg import expm
 from dateutil.relativedelta import relativedelta
@@ -22,6 +25,7 @@ from scipy.stats import beta, alpha
 from numpy.random import dirichlet
 
 from current_test import alpha_prior, beta_prior
+from distribution_by_sector import expert_test
 
 """
     Helpful materials for my diploma 
@@ -36,9 +40,17 @@ from current_test import alpha_prior, beta_prior
 #           'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10, 'Рейтинг отозван': 11}
 # expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #                'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
-expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
-               'BB': 5, 'B': 6, 'C': 7, 'D': 8}
-
+# expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
+#                'BB': 5, 'B': 6, 'C': 7, 'D': 8}
+expert_test = {
+    "AAA-AA": 1,
+    "AA-A": 2,
+    "A-BBB": 3,
+    "BB": 4,
+    "B": 5,
+    "CCC-C": 6,
+    "D": 7
+}
 group_expert = {1: 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
                'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
 # expert_test = {
@@ -387,8 +399,8 @@ def get_prev_date_raitng(data, ogrn, start_date, step, col_ogrn, col_date, col_r
         # st.write(data_1)
         rating = data_1[col_rating][len(data_1) - 1]
         date = data_1[col_date][len(data_1) - 1]
-        if rating == default[data_1['agency'][0]]:
-            rating = ''
+        # if rating == default[data_1['agency'][0]]:
+        #     rating = ''
         # years = (datetime.strptime(start_date, "%Y-%m-%d") - datetime.strptime(data_1[col_date][len(data_1) - 1],
         #                                                                        "%Y-%m-%d")).days // time_counter
         # if len(data_1[data_1[col_date] == date]) > 1 and 'отозван' in data_1[data_1[col_date] == date][col_rating].values:
@@ -586,8 +598,6 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
                         if len(get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)) > 0:
                             first, first_date = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)  # todo get previous rating on date = start_date
                             # first_date = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)[1]
-
-
                     temp_local_df = temp_df.loc[temp_df[col_date] == temp_df[col_date][len(temp_df) - 1]]
                     if len(temp_local_df) > 1 and 'Рейиинг отозван' in temp_local_df[col_rating].values:
                         last = 'Рейтинг отозван'
@@ -598,14 +608,12 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
                         temp_local_df = temp_df.loc[temp_df[col_date] == temp_df[col_date][len(temp_df) - 1]]
                         if len(temp_local_df) > 1 and default[agency] in temp_local_df[col_rating].values:
                             last = default[agency]
-
                 else:
                     if len(get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)) > 0:
                         first, first_date = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)  # todo get previous rating on date = start_date
                         # first_date = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)[1]
                         last = first
 
-                #
                 if first_date != '':
                     years = (datetime.strptime(start_dates, "%Y-%m-%d") - datetime.strptime(first_date,
                                                                                             "%Y-%m-%d")).days // 365
@@ -1034,6 +1042,7 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
         agency_dict = nra
 
     full_df = get_nan_df(agency_dict)
+    counter_def = 0
 
     full_step = None
     curent_step = None
@@ -1083,7 +1092,7 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
             # start_date + step
             pr = data_1[data_1[col_ogrn] == ogrn].reset_index().drop(columns=['index']).sort_values(col_date)
             start_dates = start_date # pr[col_date][0]
-            # start_dates = pr[col_date][0]
+            # start_dates = pr[col_date].iloc[0]
             # end_dates = pr[col_date][len(pr) - 1]
             while start_dates < (datetime.strptime(end_dates, "%Y-%m-%d")).strftime('%Y-%m-%d'):
 
@@ -1115,7 +1124,7 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
                 if date_start != '':
                     years = (datetime.strptime(start_dates, "%Y-%m-%d") - datetime.strptime(date_start,
                                                                                            "%Y-%m-%d")).days // 365
-                    if years >= 1:
+                    if years > 1:
                         # st.write(temp_df['_name'][0], date_start, start_date, first)
                         first = ''
                 # if ogrn == 17:
@@ -1163,7 +1172,7 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
                         temp_df = temp_df.drop(index=ind_to_drop_otozv).reset_index().drop(columns=['index'])
                         test_rat = temp_df[col_rating].values
                         test_date = temp_df[col_date].values
-                        test_name = temp_df['_name'].values
+                        # test_name = temp_df['_name'].values
 
                         curent_rating = test_rat[0]
                         curent_date = test_date[0]
@@ -1174,8 +1183,10 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
                                     if curent_rating != rat:
                                         result_check_full[curent_rating].append((curent_date, rat, test_date[i]))
                                         if curent_rating == 'CC.ru' and rat == 'D.ru':
-                                            st.write(curent_date, test_date[i], test_name[i])
+                                            # st.write(curent_date, test_date[i], test_name[i])
                                             counter_CC_D += 1
+                                        if curent_rating == "CCC-C" and rat == "CCC-C":
+                                            counter_def += 1
                                         curent_rating = rat
                                         curent_date = test_date[i]
 
@@ -1221,36 +1232,13 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
                                 # todo use this ti make seocnd method
                                 #     result[key_][k] = count_moves(result_check_full)[key_][k] / (state_in + sum(count_time(result_check_full, start_date, end_date)[key_]) + last_stat)
                                 result_num[key_][k].append(count_moves(result_check_full)[key_][k])
+
                         result_non_num[key_].append(state_in + count_moves_time + last_stat)
                 start_dates = (datetime.strptime(start_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d')
-                # todo use this to make seocnd method
-                # for key in agency_dict.keys():
-                #     if key not in res_avar:
-                #         res_avar[key] = []
-                #     if key in result_state_in.values() or key in count_moves(result_check_full).keys():
-                #         res_avar[key].append(1)
-                # st.write(count_time(result_check_full, start_date, end_date))
-                # st.write(count_last(result_check_full, start_date, end_date))
-                # st.write(result_check_full)
-                # start_dates = (datetime.strptime(start_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d')
-
-
-        # todo use this to make second method
-        # for key_, val_ in agency_dict.items():
-        #     if key_ not in result:
-        #         result[key_] = {}
-        #     for key, val in result.items():
-        #         if key_ == key:
-        #             for k, v in val.items():
-        #                 if k not in result[key_]:
-        #                     result[key_][k] = 0.0
-        # result = fill_empty(result, agency)
-        # result_df = pd.DataFrame().from_dict(result).fillna(0).reset_index()
-        # result_df = sort_df(result_df, agency_dict)
-        # full_df_2 += result_df
-
     # TODO realize method of time-continous process + think about NR rating for first method     07_02_2024
     st.write(counter_CC_D)
+    st.write(counter_def)
+    st.write(result_num)
     result_full = {}
     for key, val in result_num.items():
         if key not in result_full:
@@ -1258,6 +1246,8 @@ def calculate_time_cont_migr(data: pd.DataFrame, agency: str, start_date: str, e
         if key in result_non_num.keys():
             for k, v in val.items():
                 if k not in result_full[key]:
+                        if key == "CCC-C" and k == "CCC-C":
+                            st.write(result_num[key][k])
                         result_full[key][k] = (sum(result_num[key][k])) / (sum(result_non_num[key]))
 
     time.sleep(1)
@@ -1332,7 +1322,7 @@ def time_cont(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, 
     check_1 = pd.DataFrame()
     name = ''
     fig = plt.figure(figsize=(15, 15))
-    plot = sns.heatmap(result, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size":9})
+    plot = sns.heatmap(result, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size":10})
     # plt.savefig(f'{directory}/time_cont_step={step}_second_avar.jpg')
     plt.close()
     # result.to_excel(f'{directory}/time_cont_step={step}_second_avar.xlsx')
@@ -2672,6 +2662,283 @@ def bootstrap_transition_matrix(result_migr, agency_dict, n_samples=1000):
 
     return transition_matrix, ci_matrix
 
+def bootstrap_transition_matrix_beta(beta_params, n_samples=10000):
+    states = list(beta_params.keys())
+
+    # Хранение вероятностей для каждой ячейки матрицы
+    probabilities_samples = {state_from: {state_to: [] for state_to in states} for state_from in states}
+
+    for _ in range(n_samples):
+        # Генерация вероятностей переходов на основе бета-распределения
+        temp_matrix = pd.DataFrame(0.0, index=states, columns=states)
+
+        for from_state in states:
+            alpha_beta_dict = beta_params.get(from_state, {})
+
+            total_sample = 0
+            sampled_probs = {}
+
+            for to_state in states:
+                if to_state in alpha_beta_dict:
+                    alpha_ij = alpha_beta_dict[to_state]["alpha"]
+                    beta_ij = alpha_beta_dict[to_state]["beta"]
+                    sampled_probs[to_state] = beta.rvs(alpha_ij, beta_ij)  # Генерация из Beta(alpha, beta)
+                    total_sample += sampled_probs[to_state]
+
+            # Нормализация, чтобы суммы по строкам давали 1
+            if total_sample > 0:
+                for to_state in states:
+                    temp_matrix.loc[from_state, to_state] = sampled_probs.get(to_state, 0) / total_sample
+
+        # Сохранение вероятностей в список
+        for from_state in states:
+            for to_state in states:
+                probabilities_samples[from_state][to_state].append(temp_matrix.loc[from_state, to_state])
+
+    # Формирование итоговой матрицы и доверительных интервалов
+    transition_matrix = pd.DataFrame(0.0, index=states, columns=states)
+    ci_matrix = pd.DataFrame(index=states, columns=states)
+
+    for from_state in states:
+        for to_state in states:
+            probs = probabilities_samples[from_state][to_state]
+            transition_matrix.loc[from_state, to_state] = np.mean(probs)  # Среднее значение
+            ci_lower = np.percentile(probs, 2.5)  # Нижняя граница 95% интервала
+            ci_upper = np.percentile(probs, 97.5)  # Верхняя граница 95% интервала
+            ci_matrix.loc[from_state, to_state] = f"({ci_lower:.3f}, {ci_upper:.3f})"
+
+    return transition_matrix, ci_matrix
+
+
+@st.cache_data(experimental_allow_widgets=True)
+def calculate_discrete_migr_bayesian(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list, step, col_ogrn: str, col_date: str, col_rating: str):
+    agency_dict = {}
+
+    full_step = None
+    curent_step = None
+    time_counter = None
+    step_num = None
+
+    if 'months' in step.keys():
+        step_num = step['months']
+        full_step = relativedelta(months=1)
+        curent_step = relativedelta(months=step_num)
+        time_counter = 30
+
+    if 'years' in step.keys():
+        step_num = step['years']
+        full_step = relativedelta(years=1)
+        curent_step = relativedelta(years=step_num)
+        time_counter = 363
+
+    if 'days' in step.keys():
+        step_num = step['days']
+        full_step = relativedelta(days=1)
+        curent_step = relativedelta(days=step_num)
+        time_counter = 1
+
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    if agency == 'NCR':
+        agency_dict = NCR_test
+    if agency == 'AKRA':
+        agency_dict = akra
+    if agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    if agency == 'Fitch Ratings':
+        agency_dict = fitch
+    if agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    if agency == 'NRA':
+        agency_dict = nra
+
+    full_df = get_nan_df(agency_dict)
+    counter_AA = 0
+    counter_AAA = 0
+    # while start_date <= (datetime.strptime(end_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d'):
+    #     result = {}
+    #     check_ogrn = []  # todo array of orn to cancel dubl
+    #     result_migr = {}
+    #     data_prev = data[(data['agency'] == agency) & (data['_date'] < start_date)]
+    #     end_date = (datetime.strptime(start_date, "%Y-%m-%d") + curent_step).strftime('%Y-%m-%d')
+
+    data_1 = pd.DataFrame()
+    if len(scale) != 0:
+        for scal in scale:
+            data_1 = pd.concat([data_1, data[(data['agency'] == agency) & (data['scale'] == scal)].reset_index().drop(columns=['index'])], ignore_index=True)
+    else:
+        data_1 = pd.concat([data_1, data[(data['agency'] == agency)].reset_index().drop(columns=['index'])],
+                           ignore_index=True)
+
+    data_1 = data_1.sort_values(col_date)
+    st.write(len(data_1[col_ogrn].unique()))
+    counter = 0
+    set_ogrn = (data_1[col_ogrn].unique())
+    progress_text = "Operation in progress. Please wait."
+    my_bar = st.progress(0, text=progress_text)
+    alpha, beta = 1, 1
+    gamma = 0.5
+    lamda = 10
+    tau = 0.5
+    n0 = 5
+    counter_def = 0
+    # if "df_sum" not in locals():
+    df_sum = pd.DataFrame(0, index=full_df.index, columns=["Total"])
+    full_ = defaultdict(Counter)
+    result = {}
+    # result_migr = {}
+    # full_dict = {index: {col: 0. for col in full_df.columns} for index in full_df.index}
+    full_dict = {
+        index: {
+            col: {'alpha': alpha, 'beta': beta} for col in full_df.columns
+        } for index in full_df.index
+    }
+    st.write(full_dict.keys())
+    # st.write(full_dict)
+    counter_CC_D = 0
+    for ogrn in set_ogrn:
+        if pd.isna(ogrn) != True:
+            # result_migr = {}
+            result_migr = defaultdict(list)
+            time.sleep(0.01)
+            my_bar.progress(int(100 * counter / len(set_ogrn)), text=progress_text)
+            counter += 1
+            # result = {}
+            # result_migr = {}
+            pr = data_1.loc[data_1[col_ogrn] == ogrn].reset_index(drop=True).sort_values(col_date)
+            # start_dates = pr[col_date][0]
+            start_dates = pr[col_date].iloc[0]
+            end_dates = pr[col_date][len(pr) - 1]
+            # start_dates = start_date
+            while start_dates < (datetime.strptime(end_dates, "%Y-%m-%d")).strftime('%Y-%m-%d'):
+                data_prev = pr[(pr[col_date] < start_dates)]
+                end_date = (datetime.strptime(start_dates, "%Y-%m-%d") + curent_step).strftime('%Y-%m-%d')
+                temp_df = pr[(pr[col_date] >= start_dates) & (pr[col_date] <= end_date)].reset_index().drop(columns=['index']).sort_values(col_date)
+                # first = pr[col_rating].iloc[0]  # Если только одна запись, берем ее
+                first = ''
+                date_start = ''
+                if len(temp_df) > 0:
+                    if temp_df[col_date].iloc[0] == start_dates:
+                        first = temp_df[col_rating].iloc[0]
+                        date_start = start_dates
+                    else:
+                        if len(get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)) > 0:
+                            first, date_start = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)  # todo get previous rating on date = start_date
+                            # date_start = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)[1]
+                else:
+                    if len(get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)) > 0:
+                        first, date_start = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)  # todo get previous rating on date = start_date
+                        # date_start = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)[1]
+                if len(temp_df) > 1:
+                    transitions = []
+                    prev_rating = first
+                    # print(ogrn, first, date_start, type(ogrn))
+                    prev_year = pd.to_datetime(date_start).year
+                    for i in range(len(temp_df)):  # Проходим по записям начиная со второго элемента
+                        cur_rating = temp_df[col_rating].iloc[i]
+                        cur_year = pd.to_datetime(temp_df[col_date].iloc[i]).year
+
+                        if pd.to_datetime(temp_df[col_date].iloc[i]) != pd.to_datetime(date_start):
+                            if cur_year - prev_year > 1:
+                                continue  # Пропускаем большие разрывы во времени
+                            else:
+                                result_migr[prev_rating].append(cur_rating)
+                                # transitions.append((prev_rating, cur_rating))  # Запоминаем переход
+
+                                prev_rating = cur_rating  # Обновляем "предыдущее" значение
+
+                            prev_year = pd.to_datetime(temp_df[col_date].iloc[i - 1]).year
+                else:
+                    if first in agency_dict:
+                        result_migr[first].append(first)
+
+                transition_counts = defaultdict(Counter)
+
+                for start_rating in full_dict.keys():
+                    if start_rating in result_migr:
+                        for end_rating in result_migr[start_rating]:
+                            if start_rating == "CCC-C" and end_rating == "CCC-C":
+                                print(ogrn)
+                            transition_counts[start_rating][end_rating] += 1
+                            full_[start_rating][end_rating] += 1
+                    else:
+                        for end_rating_ in full_dict.keys():
+                            transition_counts[start_rating][end_rating_] += 0
+                            full_[start_rating][end_rating_] += 0
+
+                transition_df = pd.DataFrame.from_dict(transition_counts, orient='index').fillna(0)
+                # print(ogrn, transition_df)
+                transition_df["Total"] = transition_df.sum(axis=1)
+                df_sum = pd.DataFrame.from_dict(full_, orient='index').fillna(0)
+                df_sum["Total"] = df_sum.sum(axis=1)
+                # st.write(df_sum)
+                # st.write(transition_df["Total"])
+                for key, value_d in full_dict.items():
+                    for key_d, value_in_d in value_d.items():
+
+                        if key_d in result_migr.values():
+                            counter_CC_D += 1
+
+                        n_ = df_sum.at[key, "Total"]
+
+                        if key in result_migr:
+                            if key_d in result_migr[key]:
+                                # if key_d == key:
+                                #     # print(key_d, key)
+                                old_rank = agency_dict[key]
+                                new_rank = agency_dict[key_d]
+                                penalty = abs((new_rank - old_rank)) ** 2
+
+                                if penalty == 0:
+                                    penalty = 1
+
+                                t_alpha = value_in_d["alpha"]
+                                t_beta = value_in_d["beta"]
+
+                                #todo add penalty for transition
+                                full_dict[key][key_d]["alpha"] = t_alpha + transition_counts[key][key_d] * penalty
+                                full_dict[key][key_d]["beta"] = t_beta + (transition_df.at[key, "Total"] - transition_counts[key][key_d]) * penalty
+
+                        weight = 1 / (1 + np.exp(tau * (n_ - n0)))
+                        if transition_counts[key][key_d] == 0:
+                            old_rank = agency_dict[key]
+                            new_rank = agency_dict[key_d]
+                            # penalty = (new_rank - old_rank) ** 2
+                            penalty = abs((new_rank - old_rank))
+
+                            if penalty == 0:
+                                penalty = 1
+
+                            full_dict[key][key_d]["beta"] += n_ ** penalty
+                start_dates = (datetime.strptime(start_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d')
+            # st.write(result_migr.keys())
+    # st.write(counter_CC_D)
+    # st.write(df_sum)
+    # st.write(full_dict)
+    # st.write(counter_def)
+    # Пример использования
+    # transition_matrix, confidence_intervals = bootstrap_transition_matrix_beta(full_dict, n_samples=1000)
+    #
+    # # Вывод результатов
+    # st.write("Матрица переходных вероятностей:")
+    # st.write(transition_matrix)
+    #
+    # print("\nДоверительные интервалы:")
+    # print(confidence_intervals)
+
+    index_labels = list(full_dict.keys())
+    columns_labels = list(next(iter(full_dict.values())).keys())
+
+    df = pd.DataFrame(index=index_labels, columns=columns_labels)
+
+    for row_key, row_values in full_dict.items():
+        for col_key, params in row_values.items():
+            alpha, beta = params["alpha"], params["beta"]
+            df.at[row_key, col_key] = alpha / (alpha + beta)
+
+    st.write("final version with beta", df)
+    st.write("final version with beta", df.div(df.sum(axis=1), axis=0))
+
 def matrix_migration_beta(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
     st.title('Markov process with discrete time and beta-distr')
@@ -2708,6 +2975,12 @@ def matrix_migration_beta(data: pd.DataFrame, agency: str, start_date: str, end_
 
         st.write(full_df)
 
+    check_beta_new = calculate_discrete_migr_bayesian(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+
+    # check_beta_new_cont = calculate_discrete_migr_bayesian(data, agency, start_date, end_dates, scale, step, type_ogrn,
+    #                                                   type_date, type_rating)
+    st.write('New realization')
+    st.write(check_beta_new)
     # full_df.to_excel(f'{directory}/discrete_markov_step={step}.xlsx')
     n = 0
     name = ''
