@@ -396,7 +396,6 @@ def get_prev_date_raitng(data, ogrn, start_date, step, col_ogrn, col_date, col_r
         time_counter = 1
 
     if len(data_1) > 0:
-        # st.write(data_1)
         rating = data_1[col_rating][len(data_1) - 1]
         date = data_1[col_date][len(data_1) - 1]
         # if rating == default[data_1['agency'][0]]:
@@ -552,14 +551,7 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
     #     result_migr = {}
     #     data_prev = data[(data['agency'] == agency) & (data['_date'] < start_date)]
     #     end_date = (datetime.strptime(start_date, "%Y-%m-%d") + curent_step).strftime('%Y-%m-%d')
-    data_1 = pd.DataFrame()
-    if len(scale) != 0:
-        for scal in scale:
-            data_1 = pd.concat([data_1, data[(data['agency'] == agency) & (data['scale'] == scal)].reset_index().drop(columns=['index'])], ignore_index=True)
-    else:
-        data_1 = pd.concat([data_1, data[(data['agency'] == agency)].reset_index().drop(columns=['index'])],
-                           ignore_index=True)
-
+    data_1 = data
     data_1 = data_1.sort_values(col_date)
     st.write(len(data_1[col_ogrn].unique()))
     counter = 0
@@ -613,8 +605,9 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
                         # first_date = get_prev_date_raitng(data_prev, ogrn, start_dates, step, col_ogrn, col_date, col_rating)[1]
                         last = first
 
-                if first_date != None or first_date != '':
-                    st.write(first_date != None or first_date != '')
+                if first_date != None:
+                    # st.write(first_date != None)
+                    print(first_date, type(first_date))
                     years = (datetime.strptime(start_dates, "%Y-%m-%d") - datetime.strptime(first_date,
                                                                                             "%Y-%m-%d")).days // 365
                     if years > 1:
@@ -622,8 +615,6 @@ def calculate_discrete_migr(data: pd.DataFrame, agency: str, start_date: str, en
                         # st.write(temp_df['_name'][0], prev_, start_date, first)
                         first = ''
 
-                if first == default[agency]:
-                    st.write(ogrn, first, last, start_dates, end_date)
                 if first != '' and first != default[agency]:
                     # if first != default[agency] and last != 'отозван':
                         if first in agency_dict and last in agency_dict:
@@ -1322,13 +1313,7 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
         curent_step = relativedelta(days=step_num)
         step_ = 1
 
-    # data_prev = data[(data['agency'] == agency) & (data[col_date] < start_date)]
-    data_1 = pd.DataFrame()
-    if len(scale) != 0:
-        for scal in scale:
-            data_1 = pd.concat([data_1, data[(data['scale'] == scal)].reset_index().drop(columns=['index'])], ignore_index=True)
-    else:
-        data_1 = pd.concat([data_1, data.reset_index().drop(columns=['index'])], ignore_index=True)
+    data_1 = data
 
     data_1 = data_1.sort_values(col_date)
     counter = 0
@@ -2918,23 +2903,7 @@ def calculate_discrete_migr_bayesian(data: pd.DataFrame, agency: str, start_date
         agency_dict = nra
 
     full_df = get_nan_df(agency_dict)
-    counter_AA = 0
-    counter_AAA = 0
-    # while start_date <= (datetime.strptime(end_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d'):
-    #     result = {}
-    #     check_ogrn = []  # todo array of orn to cancel dubl
-    #     result_migr = {}
-    #     data_prev = data[(data['agency'] == agency) & (data['_date'] < start_date)]
-    #     end_date = (datetime.strptime(start_date, "%Y-%m-%d") + curent_step).strftime('%Y-%m-%d')
-
-    data_1 = pd.DataFrame()
-    if len(scale) != 0:
-        for scal in scale:
-            data_1 = pd.concat([data_1, data[(data['agency'] == agency) & (data['scale'] == scal)].reset_index().drop(columns=['index'])], ignore_index=True)
-    else:
-        data_1 = pd.concat([data_1, data[(data['agency'] == agency)].reset_index().drop(columns=['index'])],
-                           ignore_index=True)
-
+    data_1 = data
     data_1 = data_1.sort_values(col_date)
     st.write(len(data_1[col_ogrn].unique()))
     counter = 0
@@ -2947,36 +2916,25 @@ def calculate_discrete_migr_bayesian(data: pd.DataFrame, agency: str, start_date
     tau = 0.5
     n0 = 5
     counter_def = 0
-    # if "df_sum" not in locals():
+    eps = 10 ** (-2)
     df_sum = pd.DataFrame(0, index=full_df.index, columns=["Total"])
     full_ = defaultdict(Counter)
-    result = {}
-    # result_migr = {}
-    # full_dict = {index: {col: 0. for col in full_df.columns} for index in full_df.index}
     full_dict = {
         index: {
             col: {'alpha': alpha, 'beta': beta} for col in full_df.columns
         } for index in full_df.index
     }
     st.write(full_dict.keys())
-    # st.write(full_dict)
     counter_CC_D = 0
     for ogrn in set_ogrn:
         if pd.isna(ogrn) != True:
-            # result_migr = {}
             result_migr = defaultdict(list)
             time.sleep(0.01)
             my_bar.progress(int(100 * counter / len(set_ogrn)), text=progress_text)
             counter += 1
-            # result = {}
-            # result_migr = {}
             pr = data_1.loc[data_1[col_ogrn] == ogrn].reset_index(drop=True).sort_values(col_date)
-            # start_dates = pr[col_date][0]
-            # start_dates = pr[col_date].iloc[0]
-            # end_dates = pr[col_date][len(pr) - 1]
             start_dates = pr[col_date].iloc[0]
             end_dates = f"{pd.to_datetime(pr[col_date][len(pr) - 1]).year}-12-31"
-            # start_dates = start_date
             while start_dates < (datetime.strptime(end_dates, "%Y-%m-%d")).strftime('%Y-%m-%d'):
                 data_prev = pr[(pr[col_date] < start_dates)]
                 end_date = (datetime.strptime(start_dates, "%Y-%m-%d") + curent_step).strftime('%Y-%m-%d')
@@ -3033,12 +2991,9 @@ def calculate_discrete_migr_bayesian(data: pd.DataFrame, agency: str, start_date
                             full_[start_rating][end_rating_] += 0
 
                 transition_df = pd.DataFrame.from_dict(transition_counts, orient='index').fillna(0)
-                # print(ogrn, transition_df)
                 transition_df["Total"] = transition_df.sum(axis=1)
                 df_sum = pd.DataFrame.from_dict(full_, orient='index').fillna(0)
                 df_sum["Total"] = df_sum.sum(axis=1)
-                # st.write(df_sum)
-                # st.write(transition_df["Total"])
                 for key, value_d in full_dict.items():
                     for key_d, value_in_d in value_d.items():
 
@@ -3046,14 +3001,14 @@ def calculate_discrete_migr_bayesian(data: pd.DataFrame, agency: str, start_date
                             counter_CC_D += 1
 
                         n_ = df_sum.at[key, "Total"]
-
+                        n_loc = df_sum.at[key, key_d]
                         if key in result_migr:
                             if key_d in result_migr[key]:
                                 # if key_d == key:
                                 #     # print(key_d, key)
                                 old_rank = agency_dict[key]
                                 new_rank = agency_dict[key_d]
-                                penalty = abs((new_rank - old_rank)) ** 2
+                                penalty = abs((new_rank - old_rank))
 
                                 if penalty == 0:
                                     penalty = 1
@@ -3062,26 +3017,28 @@ def calculate_discrete_migr_bayesian(data: pd.DataFrame, agency: str, start_date
                                 t_beta = value_in_d["beta"]
 
                                 #todo add penalty for transition
-                                full_dict[key][key_d]["alpha"] = t_alpha + transition_counts[key][key_d]
-                                full_dict[key][key_d]["beta"] = t_beta  + (transition_df.at[key, "Total"] - transition_counts[key][key_d])
+                                full_dict[key][key_d]["alpha"] += transition_counts[key][key_d]
+                                full_dict[key][key_d]["beta"] += (transition_df.at[key, "Total"] - transition_counts[key][key_d])
 
                         weight = 1 / (1 + np.exp(tau * (n_ - n0)))
+                        k = 2
+                        # if key != key_d:
                         if transition_counts[key][key_d] == 0:
                             old_rank = agency_dict[key]
                             new_rank = agency_dict[key_d]
                             # penalty = (new_rank - old_rank) ** 2
-                            penalty = abs((new_rank - old_rank))
+                            penalty = abs((new_rank ** 2 - old_rank ** 2))
 
-                            if penalty == 0:
-                                penalty = 1
+                            # if penalty == 0:
+                            #     penalty = 1
 
-                            full_dict[key][key_d]["beta"] += penalty
+                            # full_dict[key][key_d]["beta"] += (penalty * (1 / (1 + n_loc / (n_ + 1)))) ** (penalty)
+                            full_dict[key][key_d]["beta"] += penalty * (1 - weight)
+
                 start_dates = (datetime.strptime(start_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d')
             # st.write(result_migr.keys())
-    # st.write(counter_CC_D)
-    # st.write(df_sum)
-    # st.write(full_dict)
-    # st.write(counter_def)
+
+    st.write(full_dict)
     # Пример использования
     transition_matrix, confidence_intervals = bootstrap_transition_matrix_beta(full_dict, n_samples=1000)
 
@@ -3100,12 +3057,364 @@ def calculate_discrete_migr_bayesian(data: pd.DataFrame, agency: str, start_date
     for row_key, row_values in full_dict.items():
         for col_key, params in row_values.items():
             alpha, beta = params["alpha"], params["beta"]
-            df.at[row_key, col_key] = alpha / (alpha + beta)
+            df.at[row_key, col_key] =  alpha / (alpha + beta)
 
-    st.write("final version with beta", df)
+    time.sleep(1)
+    my_bar.empty()
+
     st.write("final version with beta", df.div(df.sum(axis=1), axis=0))
 
-    return df
+    return df.div(df.sum(axis=1), axis=0)
+
+
+@st.cache_data(experimental_allow_widgets=True)
+def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
+                                     scale: list, step, col_ogrn: str, col_date: str, col_rating: str):
+    agency_dict = {}
+
+    # Инициализация параметров шага времени
+    full_step = None
+    curent_step = None
+    time_counter = None
+    step_num = None
+
+    if 'months' in step.keys():
+        step_num = step['months']
+        full_step = relativedelta(months=1)
+        curent_step = relativedelta(months=step_num)
+        time_counter = 30
+
+    elif 'years' in step.keys():
+        step_num = step['years']
+        full_step = relativedelta(years=1)
+        curent_step = relativedelta(years=step_num)
+        time_counter = 363
+
+    else:
+        step_num = step['days']
+        full_step = relativedelta(days=1)
+        curent_step = relativedelta(days=step_num)
+        time_counter = 1
+
+    # Инициализация словаря рейтингов
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    elif agency == 'NCR':
+        agency_dict = NCR_test
+    elif agency == 'AKRA':
+        agency_dict = akra
+    elif agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    elif agency == 'Fitch Ratings':
+        agency_dict = fitch
+    elif agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    elif agency == 'NRA':
+        agency_dict = nra
+
+    # Инициализация параметров Дирихле
+    # dirichlet_params = {
+    #     rating: {k: 1.0 for k in agency_dict}  # Uniform prior
+    #     for rating in agency_dict
+    # }
+    alpha_0 = 1  # Меньшее базовое значение
+    dirichlet_params = {
+        rating: {k: (1.0 if k == rating else alpha_0) for k in agency_dict}
+        for rating in agency_dict
+    }
+    # Подготовка данных
+    data_1 = data.sort_values(col_date)
+    set_ogrn = data_1[col_ogrn].unique()
+    progress_text = "Operation in progress. Please wait."
+    my_bar = st.progress(0, text=progress_text)
+
+    # Основной цикл обработки
+    for counter, ogrn in enumerate(set_ogrn, 1):
+        if pd.isna(ogrn):
+            continue
+
+        my_bar.progress(int(100 * counter / len(set_ogrn)),
+                        text=f"Processing {counter}/{len(set_ogrn)} companies")
+
+        pr = data_1.loc[data_1[col_ogrn] == ogrn].reset_index(drop=True).sort_values(col_date)
+        start_dates = pr[col_date].iloc[0]
+        end_dates = f"{pd.to_datetime(pr[col_date].iloc[-1]).year}-12-31"
+
+        while start_dates < datetime.strptime(end_dates, "%Y-%m-%d").strftime('%Y-%m-%d'):
+            # Получение данных для временного окна
+            data_prev = pr[pr[col_date] < start_dates]
+            end_date = (datetime.strptime(start_dates, "%Y-%m-%d") + curent_step).strftime('%Y-%m-%d')
+
+            temp_df = pr[
+                (pr[col_date] >= start_dates) &
+                (pr[col_date] <= end_date)
+                ].reset_index(drop=True).sort_values(col_date)
+
+            # Определение начального рейтинга
+            first = ''
+            date_start = ''
+            if not temp_df.empty and temp_df[col_date].iloc[0] == start_dates:
+                first = temp_df[col_rating].iloc[0]
+                date_start = start_dates
+            else:
+                prev_data = get_prev_date_raitng(data_prev, ogrn, start_dates, step,
+                                                 col_ogrn, col_date, col_rating)
+                if prev_data:
+                    first, date_start = prev_data
+
+            # Анализ переходов
+            result_migr = defaultdict(list)
+            if len(temp_df) > 1:
+                prev_rating = first
+                prev_year = pd.to_datetime(date_start).year
+
+                for i in range(len(temp_df)):
+                    cur_rating = temp_df[col_rating].iloc[i]
+                    cur_year = pd.to_datetime(temp_df[col_date].iloc[i]).year
+
+                    if pd.to_datetime(temp_df[col_date].iloc[i]) != pd.to_datetime(date_start):
+                        if cur_year - prev_year > 1:
+                            continue
+                        if prev_rating in agency_dict and cur_rating in agency_dict:
+                            result_migr[prev_rating].append(cur_rating)
+                        prev_rating = cur_rating
+                        prev_year = cur_year
+
+            elif first in agency_dict:
+                result_migr[first].append(first)
+
+            # Обновление параметров Дирихле
+            for from_rating in agency_dict:
+                if from_rating in result_migr:
+                    for to_rating in result_migr[from_rating]:
+                        if to_rating in agency_dict:
+                            dirichlet_params[from_rating][to_rating] += 1
+                else:
+                    # Нет данных о переходах — увеличиваем вероятность самоперехода
+                    dirichlet_params[from_rating][from_rating] += 0
+
+            start_dates = (datetime.strptime(start_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d')
+
+    # Обработка для каждого состояния
+    # Параметры
+    transition_matrix = pd.DataFrame(
+        index=agency_dict.keys(),
+        columns=agency_dict.keys(),
+        dtype=float
+    )
+
+    for from_rating in agency_dict:
+        # Получаем список альфа-значений для состояния from_rating
+        alpha = list(dirichlet_params[from_rating].values())
+        total = sum(alpha)
+
+        # Обработка поглощающих состояний
+        if from_rating == "D":
+            prob = [0.0] * len(alpha)
+            prob[-1] = 1.0
+        else:
+            # Если нет переходов (total == 0), добавляем штрафы
+            if total == 0:
+                prob = [0.0] * len(alpha)
+                prob[agency_dict.keys().index(from_rating)] = 1.0  # Само состояние получает вероятность 1
+
+                # Наказываем переходы в другие состояния
+                penalty_factor = 0.05  # Штрафной коэффициент для переходов
+                for i, to_rating in enumerate(agency_dict):
+                    if to_rating != from_rating:
+                        prob[i] = penalty_factor  # Понижаем вероятность переходов в другие состояния
+
+            else:
+                # Стандартный расчет вероятности с использованием параметров Дирихле
+                prob = [a / total if total > 0 else 0.0 for a in alpha]
+
+        # Заполнение таблицы переходов
+        for i, to_rating in enumerate(agency_dict):
+            transition_matrix.at[from_rating, to_rating] = prob[i]
+    # transition_matrix = pd.DataFrame(
+    #     index=agency_dict.keys(),
+    #     columns=agency_dict.keys(),
+    #     dtype=float
+    # )
+    #
+    # for from_rating in agency_dict:
+    #     alpha = list(dirichlet_params[from_rating].values())
+    #     total = sum(alpha)
+    #
+    #     # Обработка поглощающих состояний
+    #     if from_rating == "D":
+    #         prob = [0.0] * len(alpha)
+    #         prob[-1] = 1.0
+    #     else:
+    #         prob = [a / total if total > 0 else 0.0 for a in alpha]
+    #
+    #     for i, to_rating in enumerate(agency_dict):
+    #         transition_matrix.at[from_rating, to_rating] = prob[i]
+
+    my_bar.empty()
+    st.write("Final transition matrix with Dirichlet prior:")
+    st.write(transition_matrix)
+
+    return transition_matrix
+
+
+@st.cache_data(experimental_allow_widgets=True)
+def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
+                                      scale: list, step, col_ogrn: str, col_date: str, col_rating: str):
+    # Инициализация параметров шага времени
+    full_step = None
+    curent_step = None
+    time_counter = None
+    step_num = None
+
+    PENALTY_FACTOR = 0.1    # Коэффициент снижения для редких переходов
+    MIN_OBSERVATIONS = 1    # Минимальное число наблюдений
+    ALPHA_SELF = 1       # Базовый априор для самоперехода
+    ALPHA_OTHER = 0.3       # Базовый априор для других переходов
+    ALPHA_DEFAULT = 0.01     # Априор для дефолта
+
+    if 'months' in step.keys():
+        step_num = step['months']
+        full_step = relativedelta(months=1)
+        curent_step = relativedelta(months=step_num)
+        time_counter = 30
+    elif 'years' in step.keys():
+        step_num = step['years']
+        full_step = relativedelta(years=1)
+        curent_step = relativedelta(years=step_num)
+        time_counter = 363
+    else:
+        step_num = step['days']
+        full_step = relativedelta(days=1)
+        curent_step = relativedelta(days=step_num)
+        time_counter = 1
+
+        # Инициализация словаря рейтингов (без изменений)
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    elif agency == 'NCR':
+        agency_dict = NCR_test
+    elif agency == 'AKRA':
+        agency_dict = akra
+    elif agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    elif agency == 'Fitch Ratings':
+        agency_dict = fitch
+    elif agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    elif agency == 'NRA':
+        agency_dict = nra
+
+    # Инициализация параметров Дирихле
+    dirichlet_params = defaultdict(lambda: defaultdict(float))
+    observed_transitions = defaultdict(set)  # Для трекинга наблюдаемых переходов
+
+    for rating in agency_dict:
+        for k in agency_dict:
+            if k == 'D':
+                dirichlet_params[rating][k] = ALPHA_DEFAULT
+            else:
+                dirichlet_params[rating][k] = ALPHA_OTHER if k != rating else ALPHA_SELF
+
+    # Подготовка данных (без изменений)
+    data_1 = data.sort_values(col_date)
+    set_ogrn = data_1[col_ogrn].unique()
+    progress_text = "Operation in progress. Please wait."
+    my_bar = st.progress(0, text=progress_text)
+
+    # Основной цикл обработки
+    for counter, ogrn in enumerate(set_ogrn, 1):
+        if pd.isna(ogrn): continue
+
+        my_bar.progress(int(100 * counter / len(set_ogrn)),
+                        text=f"Обработка {counter}/{len(set_ogrn)} компаний")
+
+        pr = data_1.loc[data_1[col_ogrn] == ogrn].reset_index(drop=True).sort_values(col_date)
+        start_dates = pr[col_date].iloc[0]
+        end_dates = f"{pd.to_datetime(pr[col_date].iloc[-1]).year}-12-31"
+
+        current_date = start_dates
+        while current_date <= end_dates:
+            window_end = (pd.to_datetime(current_date) + curent_step).strftime('%Y-%m-%d')
+            window_data = pr[
+                (pr[col_date] >= current_date) &
+                (pr[col_date] < window_end)
+                ]
+
+            # Анализ переходов
+            transitions = []
+            prev_rating = None
+            for _, row in window_data.iterrows():
+                current_rating = row[col_rating]
+                if prev_rating is not None and prev_rating != current_rating:
+                    transitions.append((prev_rating, current_rating))
+                    observed_transitions[prev_rating].add(current_rating)  # Фиксация факта перехода
+                prev_rating = current_rating
+
+            # Обновление параметров
+            for from_rating, to_rating in transitions:
+                dirichlet_params[from_rating][to_rating] += 1.0
+
+            # Учет отсутствия переходов
+            if not transitions:
+                for rating in agency_dict:
+                    dirichlet_params[rating][rating] += ALPHA_SELF * 0.2
+
+            current_date = window_end
+
+    # Применение штрафов для ненаблюдаемых переходов
+    for from_rating in agency_dict:
+        for to_rating in agency_dict:
+            if (to_rating not in observed_transitions[from_rating] and
+                    to_rating != from_rating and
+                    to_rating != 'D'):
+                dirichlet_params[from_rating][to_rating] *= PENALTY_FACTOR
+
+    # Расчет матрицы переходов
+    transition_matrix = pd.DataFrame(
+        index=agency_dict.keys(),
+        columns=agency_dict.keys(),
+        dtype=float
+    )
+
+    for from_rating in agency_dict:
+        row_total = sum(dirichlet_params[from_rating].values())
+        if row_total == 0:
+            row_total = 1.0  # Защита от деления на ноль
+
+        # Расчет вероятностей
+        prob = []
+        for to_rating in agency_dict:
+            raw_prob = dirichlet_params[from_rating][to_rating] / row_total
+
+            # Дополнительный штраф для редких переходов
+            if (dirichlet_params[from_rating][to_rating] < MIN_OBSERVATIONS and
+                    to_rating != from_rating and
+                    to_rating != 'D'):
+                raw_prob *= PENALTY_FACTOR
+
+            prob.append(raw_prob)
+
+        # Нормализация
+        sum_prob = sum(prob)
+        if sum_prob > 0:
+            prob = [p / sum_prob for p in prob]
+
+        # Запись в матрицу
+        for i, to_rating in enumerate(agency_dict):
+            transition_matrix.at[from_rating, to_rating] = round(prob[i], 4)
+
+        # Гарантия для поглощающего состояния
+        if from_rating == 'D':
+            transition_matrix.loc['D'] = 0.0
+            transition_matrix.at['D', 'D'] = 1.0
+
+    my_bar.empty()
+    st.write("Итоговая матрица с штрафами:")
+    st.write(transition_matrix)
+
+    return transition_matrix
+
 def matrix_migration_beta(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
     st.title('Markov process with discrete time and beta-distr')
@@ -3136,29 +3445,24 @@ def matrix_migration_beta(data: pd.DataFrame, agency: str, start_date: str, end_
     )
     if method == 'disc':
         # full_df = calculate_discrete_migr_beta(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
-        full_df = calculate_discrete_migr_bayesian(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+        full_df = calculate_discrete_migr_dirichlet(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+        full_df_ = calculate_discrete_migr_dirichlet_2_0(data, agency, start_date, end_dates, scale, step, type_ogrn,
+                                                    type_date, type_rating)
     else:
         full_df = calculate_time_cont_migr_beta(data, agency, start_date, end_dates, step, type_ogrn, type_date,
                                                type_rating)
 
-        st.write(full_df)
-
-    # check_beta_new = calculate_discrete_migr_bayesian(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
-
-    # check_beta_new_cont = calculate_discrete_migr_bayesian(data, agency, start_date, end_dates, scale, step, type_ogrn,
-    #                                                   type_date, type_rating)
-    st.write('New realization')
-    st.write(full_df)
+    # check_beta_new = calculate_discrete_migr_bayesian(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating
     # full_df.to_excel(f'{directory}/discrete_markov_step={step}.xlsx')
     n = 0
     name = ''
     # full_df.index = ['AAA','AA+', 'AA', 'AA-', 'A+', 'A','A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC', 'CC', 'C', 'D']
     # full_df.columns = ['AAA','AA+', 'AA', 'AA-', 'A+', 'A','A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC', 'CC', 'C', 'D']
     fig = plt.figure(figsize=(10, 10))
-    plot = sns.heatmap(full_df, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size":9})
     # plt.savefig(f'{directory}/discrete_markov_step={step}.jpg')
+    full_df = full_df.apply(pd.to_numeric, errors='coerce')
+    plot = sns.heatmap(full_df, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size":9})
     plt.close()
-
     for col in full_df.columns:  # TODO redact by index
         if full_df[col].sum() > 0:
             fig_ = go.Figure(data=[go.Pie(labels=full_df.index[full_df[col] > 0].tolist(),
@@ -3484,6 +3788,8 @@ if __name__ == '__main__':
     scale = st.sidebar.selectbox("Choose scale column", data.columns)
 
     agency = st.sidebar.selectbox("Choose one agency to check", data[type_agency].unique())
+    data = data[data[type_agency] == agency]
+
     _ro_type = st.sidebar.multiselect('Choose type of companies', data[type_field].unique())
     data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
     type_rating_group = st.sidebar.selectbox("Choose grouped rating column (if needed)", data.columns)
@@ -3496,17 +3802,12 @@ if __name__ == '__main__':
     if len(_ro_type) != 0 and type_field is not None:
         data = data[data[type_field].isin(_ro_type)]
 
-    st.write(data)
-    st.write(type_rating)
     data[type_date] = pd.to_datetime(data[type_date]).dt.strftime('%Y-%m-%d')
-    try:
-        data = data[(data['fin_instrument'] != 1) & (data['_ro_type'] != 'Облигации')]
-    except:
-        data = data[(data['fin_instrument'] != 1)]
     data = data.sort_values(type_date).reset_index().drop(columns=['index'])
+    st.write(data)
+
     start_date = data[type_date][0]
     end_date = data[type_date][len(data[type_date]) - 1]
-    # end_date = (datetime.strptime(start_date, "%Y-%m-%d") + relativedelta(years=2)).strftime('%Y-%m-%d')
     st.write(start_date, end_date)
     scale = st.sidebar.multiselect('Choose scale (Be careful, do not choose different scales)',
                                    data[data[type_agency] == agency][scale].unique())
