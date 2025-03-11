@@ -1336,7 +1336,6 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
             my_bar_1.progress(int(100 * counter / len(set_ogrn)) , text=progress_text)
             counter += 1
             pr = data_1[data_1[col_ogrn] == ogrn].reset_index().drop(columns=['index']).sort_values(col_date)
-            # start_dates = start_date # pr[col_date][0]
             start_dates = pr[col_date].iloc[0]
             end_dates = f"{pd.to_datetime(pr[col_date][len(pr) - 1]).year + 1}-01-01"
 
@@ -1384,9 +1383,8 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
                             if (pd.to_datetime(temp_df[col_date].iloc[i]) - pd.to_datetime(prev_date)).days / 364 > 1:
                                 continue  # Пропускаем большие разрывы во времени
                             else:
-                                if cur_rating == "CCC-C" and prev_rating == "CCC-C":
-                                    print(temp_df, temp_df[col_date], ogrn)
-                                    checker_ccc.append((pd.to_datetime(temp_df[col_date].iloc[i]) - pd.to_datetime(prev_date)).days / step_)
+                                if prev_rating == "CCC-C":
+                                    print(ogrn, prev_rating)
                                 if i != len(temp_df) - 1:
                                     if prev_rating != cur_rating:
                                         result_migr[prev_rating].append(cur_rating)
@@ -1408,15 +1406,10 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
 
                 else:
                     if first in agency_dict:
-                        if first == "CCC-C":
-                            print(temp_df, temp_df[col_date], ogrn)
-                            checker_ccc.append((pd.to_datetime(end_date) - pd.to_datetime(start_dates)).days / step_)
-
                         result_migr_time[first].append((pd.to_datetime(end_date) - pd.to_datetime(start_dates)).days / step_)
 
                 start_dates = (datetime.strptime(start_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d')
-            # if ogrn == "Company_11":
-            #     st.write(result_migr, result_migr_time)
+
             for prev_rating, transitions in result_migr.items():
                     for cur_rating in transitions:
                         result_trans[prev_rating][cur_rating] += 1
@@ -1425,20 +1418,16 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
                 result_time[prev_rating] += sum(time_)
 
     result_full = {}
-    st.write(result_trans)
-    st.write(result_time)
+    # st.write(result_trans)
+    # st.write(result_time)
     for key, val in result_trans.items():
         if key not in result_full:
             result_full[key] = {}
         if key in result_time.keys():
             for k, v in val.items():
                 if k not in result_full[key]:
-                        # if key == "CCC-C" and k == "CCC-C":
-                        #     st.write(result_num[key][k])
                         result_full[key][k] = (result_trans[key][k]) / (result_time[key])
 
-    st.write(result_full)
-    st.write(sum(checker_ccc))
     time.sleep(1)
     my_bar_1.empty()
     return result_full
@@ -3125,15 +3114,15 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
         agency_dict = nra
 
     # Инициализация параметров Дирихле
-    # dirichlet_params = {
-    #     rating: {k: 1.0 for k in agency_dict}  # Uniform prior
-    #     for rating in agency_dict
-    # }
-    alpha_0 = 1  # Меньшее базовое значение
     dirichlet_params = {
-        rating: {k: (1.0 if k == rating else alpha_0) for k in agency_dict}
+        rating: {k: 1.0 for k in agency_dict}  # Uniform prior
         for rating in agency_dict
     }
+    # alpha_0 = 1  # Меньшее базовое значение
+    # dirichlet_params = {
+    #     rating: {k: (1.0 if k == rating else alpha_0) for k in agency_dict}
+    #     for rating in agency_dict
+    # }
     # Подготовка данных
     data_1 = data.sort_values(col_date)
     set_ogrn = data_1[col_ogrn].unique()
@@ -3214,42 +3203,9 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
         columns=agency_dict.keys(),
         dtype=float
     )
-
-    for from_rating in agency_dict:
-        # Получаем список альфа-значений для состояния from_rating
-        alpha = list(dirichlet_params[from_rating].values())
-        total = sum(alpha)
-
-        # Обработка поглощающих состояний
-        if from_rating == "D":
-            prob = [0.0] * len(alpha)
-            prob[-1] = 1.0
-        else:
-            # Если нет переходов (total == 0), добавляем штрафы
-            if total == 0:
-                prob = [0.0] * len(alpha)
-                prob[agency_dict.keys().index(from_rating)] = 1.0  # Само состояние получает вероятность 1
-
-                # Наказываем переходы в другие состояния
-                penalty_factor = 0.05  # Штрафной коэффициент для переходов
-                for i, to_rating in enumerate(agency_dict):
-                    if to_rating != from_rating:
-                        prob[i] = penalty_factor  # Понижаем вероятность переходов в другие состояния
-
-            else:
-                # Стандартный расчет вероятности с использованием параметров Дирихле
-                prob = [a / total if total > 0 else 0.0 for a in alpha]
-
-        # Заполнение таблицы переходов
-        for i, to_rating in enumerate(agency_dict):
-            transition_matrix.at[from_rating, to_rating] = prob[i]
-    # transition_matrix = pd.DataFrame(
-    #     index=agency_dict.keys(),
-    #     columns=agency_dict.keys(),
-    #     dtype=float
-    # )
     #
     # for from_rating in agency_dict:
+    #     # Получаем список альфа-значений для состояния from_rating
     #     alpha = list(dirichlet_params[from_rating].values())
     #     total = sum(alpha)
     #
@@ -3258,10 +3214,43 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
     #         prob = [0.0] * len(alpha)
     #         prob[-1] = 1.0
     #     else:
-    #         prob = [a / total if total > 0 else 0.0 for a in alpha]
+    #         # Если нет переходов (total == 0), добавляем штрафы
+    #         if total == 0:
+    #             prob = [0.0] * len(alpha)
+    #             prob[agency_dict.keys().index(from_rating)] = 1.0  # Само состояние получает вероятность 1
     #
+    #             # Наказываем переходы в другие состояния
+    #             penalty_factor = 0.05  # Штрафной коэффициент для переходов
+    #             for i, to_rating in enumerate(agency_dict):
+    #                 if to_rating != from_rating:
+    #                     prob[i] = penalty_factor  # Понижаем вероятность переходов в другие состояния
+    #
+    #         else:
+    #             # Стандартный расчет вероятности с использованием параметров Дирихле
+    #             prob = [a / total if total > 0 else 0.0 for a in alpha]
+    #
+    #     # Заполнение таблицы переходов
     #     for i, to_rating in enumerate(agency_dict):
     #         transition_matrix.at[from_rating, to_rating] = prob[i]
+    # transition_matrix = pd.DataFrame(
+    #     index=agency_dict.keys(),
+    #     columns=agency_dict.keys(),
+    #     dtype=float
+    # )
+    #
+    for from_rating in agency_dict:
+        alpha = list(dirichlet_params[from_rating].values())
+        total = sum(alpha)
+
+        # Обработка поглощающих состояний
+        if from_rating == "D":
+            prob = [0.0] * len(alpha)
+            prob[-1] = 1.0
+        else:
+            prob = [a / total if total > 0 else 0.0 for a in alpha]
+
+        for i, to_rating in enumerate(agency_dict):
+            transition_matrix.at[from_rating, to_rating] = prob[i]
 
     my_bar.empty()
     st.write("Final transition matrix with Dirichlet prior:")
@@ -3270,7 +3259,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
     return transition_matrix
 
 
-# @st.cache_data(experimental_allow_widgets=True)
+@st.cache_data(experimental_allow_widgets=True)
 def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
                                       scale: list, step, col_ogrn: str, col_date: str, col_rating: str):
     # Инициализация параметров шага времени
@@ -3279,11 +3268,11 @@ def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start
     time_counter = None
     step_num = None
 
-    PENALTY_FACTOR = 0.2    # Коэффициент снижения для редких переходов
-    MIN_OBSERVATIONS = 1    # Минимальное число наблюдений
-    ALPHA_SELF = 0.5       # Базовый априор для самоперехода
-    ALPHA_OTHER = 0.3       # Базовый априор для других переходов
-    ALPHA_DEFAULT = 0.5     # Априор для дефолта
+    PENALTY_FACTOR = 0.1    # Коэффициент снижения для редких переходов
+    MIN_OBSERVATIONS = 2    # Минимальное число наблюдений
+    ALPHA_SELF = 0.05       # Базовый априор для самоперехода
+    ALPHA_OTHER = 0.95       # Базовый априор для других переходов
+    ALPHA_DEFAULT = 0.05     # Априор для дефолта
 
     if 'months' in step.keys():
         step_num = step['months']
@@ -3875,6 +3864,7 @@ if __name__ == '__main__':
     scale = st.sidebar.selectbox("Choose scale column", data.columns)
 
     agency = st.sidebar.selectbox("Choose one agency to check", data[type_agency].unique())
+
     data = data[data[type_agency] == agency]
 
     _ro_type = st.sidebar.multiselect('Choose type of companies', data[type_field].unique())
@@ -3889,12 +3879,13 @@ if __name__ == '__main__':
     if len(_ro_type) != 0 and type_field is not None:
         data = data[data[type_field].isin(_ro_type)]
 
-
-    valid_keys = list(expert_test.keys())
+    # valid_keys = list(expert_test.keys())
     data[type_date] = pd.to_datetime(data[type_date]).dt.strftime('%Y-%m-%d')
-    data = data[data[type_rating].isin(valid_keys)]
+
+    # data = data[data[type_rating].isin(valid_keys)]
     data = data.sort_values(type_date).reset_index().drop(columns=['index'])
     st.write(data)
+    st.write(data[type_date][0])
 
     start_date = data[type_date][0]
     end_date = data[type_date][len(data[type_date]) - 1]
