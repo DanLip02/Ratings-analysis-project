@@ -26,6 +26,8 @@ from numpy.random import dirichlet
 
 from current_test import alpha_prior, beta_prior
 from distribution_by_sector import expert_test
+from sklearn.model_selection import train_test_split
+
 
 """
     Helpful materials for my diploma 
@@ -3270,7 +3272,7 @@ def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start
 
     PENALTY_FACTOR = 0.1    # Коэффициент снижения для редких переходов
     MIN_OBSERVATIONS = 2    # Минимальное число наблюдений
-    ALPHA_SELF = 0.05       # Базовый априор для самоперехода
+    ALPHA_SELF = 0.025       # Базовый априор для самоперехода
     ALPHA_OTHER = 0.95       # Базовый априор для других переходов
     ALPHA_DEFAULT = 0.05     # Априор для дефолта
 
@@ -3465,7 +3467,7 @@ def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start
 
 def matrix_migration_beta(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
-    st.title('Markov process with discrete time and beta-distr')
+    st.title('Markov process with discrete time and Dirichlet-distr')
 
     delta = datetime.strptime(end_dates, "%Y-%m-%d") - datetime.strptime(start_date, "%Y-%m-%d")
     agency_dict = {}
@@ -3734,7 +3736,7 @@ def predict_next_ratings(current_ratings, transition_matrix, mode='deterministic
 
     return predicted_ratings
 
-def metric_quality(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
+def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
     agency_dict = {}
     if agency == 'Expert RA':
@@ -3760,7 +3762,8 @@ def metric_quality(data: pd.DataFrame, agency: str, start_date: str, end_dates: 
         result_full = fill_empty(result_full, agency_dict)
         result_full_df = pd.DataFrame().from_dict(result_full).fillna(0).reset_index()
         result_full_df = get_generator(sort_df(result_full_df, agency_dict))
-        result = expm(result_full_df.to_numpy())
+        n = st.number_input("choose predicct num", min_value=1, max_value=100)
+        result = expm(result_full_df.to_numpy() * n)
         columns_ag = list(agency_dict.keys())
         result = pd.DataFrame(result, columns=columns_ag, index=columns_ag)
         transition_matrix = result
@@ -3778,7 +3781,7 @@ def metric_quality(data: pd.DataFrame, agency: str, start_date: str, end_dates: 
 
     for obj in data[type_ogrn].unique():
         temp_ = data[data[type_ogrn] == obj]
-        data_prev = temp_[temp_[type_date] <= date_to_check]
+        data_prev = temp_[temp_[type_date] <= date_to_check].sort_values(by=type_ogrn)
         prev_rat, prev_date = get_prev_date_raitng(data_prev, obj, date_to_check_pred, step, type_ogrn, type_date, type_rating)
         if prev_rat is not None:
             states_for_K_objects_pred.append(prev_rat)
@@ -3791,7 +3794,7 @@ def metric_quality(data: pd.DataFrame, agency: str, start_date: str, end_dates: 
 
     for obj in data[type_ogrn].unique():
         temp_ = data[data[type_ogrn] == obj]
-        data_prev = temp_[temp_[type_date] <= date_to_check]
+        data_prev = temp_[temp_[type_date] <= date_to_check].sort_values(by=type_ogrn)
         prev_rat, prev_date = get_prev_date_raitng(data_prev, obj, date_to_check_fact, step, type_ogrn, type_date, type_rating)
         if prev_rat is not None:
             states_for_K_objects_fact.append(prev_rat)
@@ -3827,7 +3830,7 @@ def metric_quality(data: pd.DataFrame, agency: str, start_date: str, end_dates: 
         accuracy = accuracy_score(states_for_K_objects_pred, predicted)
         st.write(f"Accuracy: {accuracy:.4f}")
 
-        cm = confusion_matrix(predicted, states_for_K_objects_fact)
+        cm = confusion_matrix(states_for_K_objects_fact, predicted)
         st.write(cm)
 
         from sklearn.metrics import accuracy_score, confusion_matrix
@@ -3844,6 +3847,108 @@ def metric_quality(data: pd.DataFrame, agency: str, start_date: str, end_dates: 
 
         precision_macro = precision_score(states_for_K_objects_fact, predicted_stochastic, average='micro')
         st.write("precision Recall stoch:", precision_macro)
+
+        predicted_ = predict_next_ratings(data[type_rating].values, transition_matrix, mode='deterministic')
+
+        cm = confusion_matrix(data_test[type_rating].values, predicted_)
+        st.write(cm)
+        recall_micro_ = recall_score(data_test[type_rating].values, predicted, average='micro')
+        st.write("Micri Recall predict:", recall_micro_)
+
+def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, step, col_ogrn: str, col_date: str, col_rating: str):
+
+    def create_transition_dataframe(ratings_list):
+        """Создает DataFrame переходов второго порядка с вероятностями."""
+        transitions = defaultdict(list)
+
+        # Формируем пары (S_{t-2}, S_{t-1}) -> S_t
+        for ratings in ratings_list:
+            for i in range(len(ratings) - 2):
+                pair = (ratings[i], ratings[i + 1])
+                next_state = ratings[i + 2]
+                transitions[pair].append(next_state)
+
+        # Создаём список строк для DataFrame
+        data = []
+        for pair, next_states in transitions.items():
+            unique, counts = np.unique(next_states, return_counts=True)
+            total = counts.sum()
+            probabilities = {state: count / total for state, count in zip(unique, counts)}
+            row = {'state_t-2': pair[0], 'state_t-1': pair[1], **probabilities}
+            data.append(row)
+
+        # Создаём DataFrame
+        df = pd.DataFrame(data).fillna(0)
+        return df
+
+    full_step = None
+    curent_step = None
+    time_counter = None
+    step_num = None
+
+    if 'months' in step.keys():
+        step_num = step['months']
+        full_step = relativedelta(months=1)
+        curent_step = relativedelta(months=step_num)
+        time_counter = 30
+    elif 'years' in step.keys():
+        step_num = step['years']
+        full_step = relativedelta(years=1)
+        curent_step = relativedelta(years=step_num)
+        time_counter = 363
+    else:
+        step_num = step['days']
+        full_step = relativedelta(days=1)
+        curent_step = relativedelta(days=step_num)
+        time_counter = 1
+
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    elif agency == 'NCR':
+        agency_dict = NCR_test
+    elif agency == 'AKRA':
+        agency_dict = akra
+    elif agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    elif agency == 'Fitch Ratings':
+        agency_dict = fitch
+    elif agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    elif agency == 'NRA':
+        agency_dict = nra
+
+
+    # Подготовка данных (без изменений)
+    data_1 = data.sort_values(col_date)
+    set_identifier = data_1[col_ogrn].unique()
+    progress_text = "Operation in progress. Please wait."
+    my_bar = st.progress(0, text=progress_text)
+    values_ = []
+    for counter , obj in enumerate(set_identifier):
+        if pd.isna(obj): continue
+
+        my_bar.progress(int(100 * counter / len(set_identifier)),
+                        text=f"Обработка {counter}/{len(set_identifier)} компаний")
+
+        pr = data_1.loc[data_1[col_ogrn] == obj].reset_index(drop=True).sort_values(col_date)
+
+        values_.append(pr[col_rating].values)
+
+    transition_probs = create_transition_dataframe(values_)
+
+    my_bar.empty()
+
+    return transition_probs
+
+def matrix_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
+                     step: dict, type_ogrn, type_date, type_rating):
+
+    st.title('Markov process of second order for factual transitions')
+
+    full_dict = calculate_second_order(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
+
+    st.write(full_dict)
+
 
 
 if __name__ == '__main__':
@@ -3884,6 +3989,7 @@ if __name__ == '__main__':
 
     # data = data[data[type_rating].isin(valid_keys)]
     data = data.sort_values(type_date).reset_index().drop(columns=['index'])
+    data, data_test = train_test_split(data, test_size=0.3, random_state=42)
     st.write(data)
     st.write(data[type_date][0])
 
@@ -3920,8 +4026,11 @@ if __name__ == '__main__':
     if st.sidebar.checkbox('Markov process with series - length'):
         migration_matrix_series(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
+    if st.sidebar.checkbox('Markov model second order'):
+        matrix_second_order(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+
     if st.sidebar.checkbox('Compare results by quality'):
-        metric_quality(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+        metric_quality(data, data_test, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
     if st.sidebar.checkbox('Compare results'):
         n = st.number_input('Write number of each predict you want to do', min_value= 1, max_value = 1000)
