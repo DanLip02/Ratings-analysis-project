@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
+import scipy.stats as stats
 import plotly.graph_objects as go
 import streamlit as st
 import seaborn as sns
@@ -3130,7 +3131,9 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
     set_ogrn = data_1[col_ogrn].unique()
     progress_text = "Operation in progress. Please wait."
     my_bar = st.progress(0, text=progress_text)
-
+    num_samples = 5000  # Количество выборок
+    # 1. Сбор переходов по объектам
+    obj_transitions = defaultdict(lambda: defaultdict(int))
     # Основной цикл обработки
     for counter, ogrn in enumerate(set_ogrn, 1):
         if pd.isna(ogrn):
@@ -3143,60 +3146,26 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
         start_dates = pr[col_date].iloc[0]
         end_dates = f"{pd.to_datetime(pr[col_date].iloc[-1]).year}-12-31"
 
-        while start_dates < datetime.strptime(end_dates, "%Y-%m-%d").strftime('%Y-%m-%d'):
-            # Получение данных для временного окна
-            data_prev = pr[pr[col_date] < start_dates]
-            end_date = (datetime.strptime(start_dates, "%Y-%m-%d") + curent_step).strftime('%Y-%m-%d')
+        pr = data_1.loc[data_1[col_ogrn] == ogrn].reset_index(drop=True).sort_values(col_date)
+        if len(pr) < 1:
+            continue  # Пропускаем, если недостаточно данных для переходов
 
-            temp_df = pr[
-                (pr[col_date] >= start_dates) &
-                (pr[col_date] <= end_date)
-                ].reset_index(drop=True).sort_values(col_date)
+        prev_rating = pr[col_rating].iloc[0]  # Начальный рейтинг
+        prev_date = pd.to_datetime(pr[col_date].iloc[0])
 
-            # Определение начального рейтинга
-            first = ''
-            date_start = ''
-            if not temp_df.empty and temp_df[col_date].iloc[0] == start_dates:
-                first = temp_df[col_rating].iloc[0]
-                date_start = start_dates
-            else:
-                prev_data = get_prev_date_raitng(data_prev, ogrn, start_dates, step,
-                                                 col_ogrn, col_date, col_rating)
-                if prev_data:
-                    first, date_start = prev_data
+        for i in range(1, len(pr)):
+            current_rating = pr[col_rating].iloc[i]
+            current_date = pd.to_datetime(pr[col_date].iloc[i])
 
-            # Анализ переходов
-            result_migr = defaultdict(list)
-            if len(temp_df) > 1:
-                prev_rating = first
-                prev_year = pd.to_datetime(date_start).year
+            # Пропускаем, если между датами разрыв > 1 года
+            if (current_date - prev_date).days > 365:
+                prev_rating = current_rating
+                prev_date = current_date
+                continue
 
-                for i in range(len(temp_df)):
-                    cur_rating = temp_df[col_rating].iloc[i]
-                    cur_year = pd.to_datetime(temp_df[col_date].iloc[i]).year
-
-                    if pd.to_datetime(temp_df[col_date].iloc[i]) != pd.to_datetime(date_start):
-                        if cur_year - prev_year > 1:
-                            continue
-                        if prev_rating in agency_dict and cur_rating in agency_dict:
-                            result_migr[prev_rating].append(cur_rating)
-                        prev_rating = cur_rating
-                        prev_year = cur_year
-
-            elif first in agency_dict:
-                result_migr[first].append(first)
-
-            # Обновление параметров Дирихле
-            for from_rating in agency_dict:
-                if from_rating in result_migr:
-                    for to_rating in result_migr[from_rating]:
-                        if to_rating in agency_dict:
-                            dirichlet_params[from_rating][to_rating] += 1
-                else:
-                    # Нет данных о переходах — увеличиваем вероятность самоперехода
-                    dirichlet_params[from_rating][from_rating] += 1
-
-            start_dates = (datetime.strptime(start_dates, "%Y-%m-%d") + full_step).strftime('%Y-%m-%d')
+            obj_transitions[prev_rating][current_rating] += 1  # Фиксируем переход
+            prev_rating = current_rating
+            prev_date = current_date
 
     # Обработка для каждого состояния
     # Параметры
@@ -3205,57 +3174,41 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
         columns=agency_dict.keys(),
         dtype=float
     )
-    #
-    # for from_rating in agency_dict:
-    #     # Получаем список альфа-значений для состояния from_rating
-    #     alpha = list(dirichlet_params[from_rating].values())
-    #     total = sum(alpha)
-    #
-    #     # Обработка поглощающих состояний
-    #     if from_rating == "D":
-    #         prob = [0.0] * len(alpha)
-    #         prob[-1] = 1.0
-    #     else:
-    #         # Если нет переходов (total == 0), добавляем штрафы
-    #         if total == 0:
-    #             prob = [0.0] * len(alpha)
-    #             prob[agency_dict.keys().index(from_rating)] = 1.0  # Само состояние получает вероятность 1
-    #
-    #             # Наказываем переходы в другие состояния
-    #             penalty_factor = 0.05  # Штрафной коэффициент для переходов
-    #             for i, to_rating in enumerate(agency_dict):
-    #                 if to_rating != from_rating:
-    #                     prob[i] = penalty_factor  # Понижаем вероятность переходов в другие состояния
-    #
-    #         else:
-    #             # Стандартный расчет вероятности с использованием параметров Дирихле
-    #             prob = [a / total if total > 0 else 0.0 for a in alpha]
-    #
-    #     # Заполнение таблицы переходов
-    #     for i, to_rating in enumerate(agency_dict):
-    #         transition_matrix.at[from_rating, to_rating] = prob[i]
-    # transition_matrix = pd.DataFrame(
-    #     index=agency_dict.keys(),
-    #     columns=agency_dict.keys(),
-    #     dtype=float
-    # )
-    #
-    for from_rating in agency_dict:
-        alpha = list(dirichlet_params[from_rating].values())
-        total = sum(alpha)
 
-        # Обработка поглощающих состояний
-        if from_rating == "D":
-            prob = [0.0] * len(alpha)
-            prob[-1] = 1.0
-        else:
-            prob = [a / total if total > 0 else 0.0 for a in alpha]
+    # 2. Формирование параметров Дирихле
+    posterior_params = np.zeros((len(agency_dict), len(agency_dict)))
+    for i, from_rating in enumerate(agency_dict):
+        total_count = sum(obj_transitions[from_rating].values())  # Всего переходов из данного рейтинга
 
-        for i, to_rating in enumerate(agency_dict):
-            transition_matrix.at[from_rating, to_rating] = prob[i]
+        for j, to_rating in enumerate(agency_dict):
+            # Добавляем сглаживание, чтобы не было нулевых вероятностей
+            old_rank = agency_dict[from_rating]
+            new_rank = agency_dict[to_rating]
+            penalty = abs((new_rank - old_rank))
+            if penalty == 0:
+                penalty = 0.04
+            posterior_params[i, j] = obj_transitions[from_rating][to_rating] * penalty + 1 / penalty
 
-    my_bar.empty()
-    st.write("Final transition matrix with Dirichlet prior:")
+    # for i, from_rating in enumerate(agency_dict):
+    #     total_count = sum(obj_transitions[from_rating].values())  # Всего переходов из данного рейтинга
+    #
+    #     for j, to_rating in enumerate(agency_dict):
+    #         # Добавляем сглаживание, чтобы не было нулевых вероятностей
+    #         posterior_params[i, j] = obj_transitions[from_rating][to_rating] + ALPHA_OTHER
+
+    st.write(posterior_params)
+    # 3. Сэмплирование вероятностей переходов
+    samples = np.array([stats.dirichlet.rvs(posterior_params[i], size=num_samples) for i in range(len(agency_dict))])
+
+    # 4. Байесовская оценка матрицы миграции
+    P_estimated = samples.mean(axis=1)
+
+    # Обновляем transition_matrix
+    for i, from_rating in enumerate(agency_dict):
+        for j, to_rating in enumerate(agency_dict):
+            transition_matrix.at[from_rating, to_rating] = round(P_estimated[i, j], 4)
+
+    st.write("Байесовская оценка матрицы миграции рейтингов:")
     st.write(transition_matrix)
 
     return transition_matrix
@@ -3270,11 +3223,11 @@ def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start
     time_counter = None
     step_num = None
 
-    PENALTY_FACTOR = 0.1    # Коэффициент снижения для редких переходов
+    PENALTY_FACTOR = 1    # Коэффициент снижения для редких переходов
     MIN_OBSERVATIONS = 2    # Минимальное число наблюдений
-    ALPHA_SELF = 0.025       # Базовый априор для самоперехода
-    ALPHA_OTHER = 0.95       # Базовый априор для других переходов
-    ALPHA_DEFAULT = 0.05     # Априор для дефолта
+    ALPHA_SELF = 0.05       # Базовый априор для самоперехода
+    ALPHA_OTHER = 1       # Базовый априор для других переходов
+    ALPHA_DEFAULT = 0.5     # Априор для дефолта
 
     if 'months' in step.keys():
         step_num = step['months']
@@ -3285,7 +3238,7 @@ def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start
         step_num = step['years']
         full_step = relativedelta(years=1)
         curent_step = relativedelta(years=step_num)
-        time_counter = 363
+        time_counter = 364
     else:
         step_num = step['days']
         full_step = relativedelta(days=1)
@@ -3395,7 +3348,7 @@ def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start
             else:
             # if not transitions:
                 for rating in agency_dict:
-                    dirichlet_params[rating][rating] += ALPHA_SELF * 0.05
+                    dirichlet_params[rating][rating] += ALPHA_SELF ** 2
 
             current_date = window_end
 
@@ -3419,7 +3372,6 @@ def calculate_discrete_migr_dirichlet_2_0(data: pd.DataFrame, agency: str, start
         dtype=float
     )
 
-    st.write(dirichlet_params)
     for from_rating in agency_dict:
         row_total = sum(dirichlet_params[from_rating].values())
         if row_total == 0:
@@ -3495,9 +3447,9 @@ def matrix_migration_beta(data: pd.DataFrame, agency: str, start_date: str, end_
     )
     if method == 'disc':
         # full_df = calculate_discrete_migr_beta(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
-        # full_df = calculate_discrete_migr_dirichlet(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
-        full_df_ = calculate_discrete_migr_dirichlet_2_0(data, agency, start_date, end_dates, scale, step, type_ogrn,
-                                                    type_date, type_rating)
+        full_df = calculate_discrete_migr_dirichlet(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+        # full_df_ = calculate_discrete_migr_dirichlet_2_0(data, agency, start_date, end_dates, scale, step, type_ogrn,
+        #                                             type_date, type_rating)
     else:
         full_df = calculate_time_cont_migr_beta(data, agency, start_date, end_dates, step, type_ogrn, type_date,
                                                type_rating)
@@ -3990,9 +3942,9 @@ if __name__ == '__main__':
     # data = data[data[type_rating].isin(valid_keys)]
     data = data.sort_values(type_date).reset_index().drop(columns=['index'])
     data, data_test = train_test_split(data, test_size=0.3, random_state=42)
+    data = data.reset_index(drop=True)
+    data_test = data_test.reset_index(drop=True)
     st.write(data)
-    st.write(data[type_date][0])
-
     start_date = data[type_date][0]
     end_date = data[type_date][len(data[type_date]) - 1]
     st.write(start_date, end_date)
