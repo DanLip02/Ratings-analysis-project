@@ -10,6 +10,7 @@ import scipy.stats as stats
 import plotly.graph_objects as go
 import streamlit as st
 import seaborn as sns
+from django.db.models.expressions import result
 from fitter import Fitter
 from pyvis.network import Network
 import streamlit.components.v1 as components
@@ -24,11 +25,11 @@ import statsmodels.api as sm
 import networkx as nx
 from scipy.stats import beta, alpha
 from numpy.random import dirichlet
-
-from current_test import alpha_prior, beta_prior
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+# from current_test import alpha_prior, beta_prior, transitions
 from distribution_by_sector import expert_test
 from sklearn.model_selection import train_test_split
-
+import time
 
 """
     Helpful materials for my diploma 
@@ -54,6 +55,11 @@ expert_test = {
     "CCC-C": 6,
     "D": 7
 }
+# expert_test = {
+#     "AAA-AA": 1,
+#     "A-BBB": 2,
+#     "D": 3
+# }
 group_expert = {1: 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
                'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
 # expert_test = {
@@ -1460,16 +1466,18 @@ def time_cont(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, 
     full_df_2 = get_nan_df(agency_dict)
 
     # Second attampt to find the best avarage of final matrix throw the entire period
+    start_time = time.perf_counter()
     result_full = calculate_time_cont_migr_new(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
-
+    # result_full = calculate_time_cont_migr(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
     result_full = fill_empty(result_full, agency_dict)
     result_full_df = pd.DataFrame().from_dict(result_full).fillna(0).reset_index()
     result_full_df = get_generator(sort_df(result_full_df, agency_dict))
     result = expm(result_full_df.to_numpy())
     columns_ag = list(agency_dict.keys())
     result = pd.DataFrame(result, columns=columns_ag, index=columns_ag)
+    end_time = time.perf_counter()
 
-
+    st.write(f"Время выполнения: {end_time - start_time:.4f} секунд и размер датасета: {len(data)}")
 
     check_1 = pd.DataFrame()
     name = ''
@@ -3131,7 +3139,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
     set_ogrn = data_1[col_ogrn].unique()
     progress_text = "Operation in progress. Please wait."
     my_bar = st.progress(0, text=progress_text)
-    num_samples = 5000  # Количество выборок
+    num_samples = 3000  # Количество выборок
     # 1. Сбор переходов по объектам
     obj_transitions = defaultdict(lambda: defaultdict(int))
     # Основной цикл обработки
@@ -3163,6 +3171,8 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
                 prev_date = current_date
                 continue
 
+            if prev_rating == 'AA-A' and current_rating == 'D':
+                print(ogrn)
             obj_transitions[prev_rating][current_rating] += 1  # Фиксируем переход
             prev_rating = current_rating
             prev_date = current_date
@@ -3186,9 +3196,9 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
             new_rank = agency_dict[to_rating]
             penalty = abs((new_rank - old_rank))
             if penalty == 0:
-                penalty = 0.04
-            posterior_params[i, j] = obj_transitions[from_rating][to_rating] * penalty + 1 / penalty
-
+                penalty = 11
+            posterior_params[i, j] = (obj_transitions[from_rating][to_rating] + 1) / penalty
+            # posterior_params[i, j] = obj_transitions[from_rating][to_rating] + 1
     # for i, from_rating in enumerate(agency_dict):
     #     total_count = sum(obj_transitions[from_rating].values())  # Всего переходов из данного рейтинга
     #
@@ -3196,7 +3206,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
     #         # Добавляем сглаживание, чтобы не было нулевых вероятностей
     #         posterior_params[i, j] = obj_transitions[from_rating][to_rating] + ALPHA_OTHER
 
-    st.write(posterior_params)
+    # st.write(posterior_params)
     # 3. Сэмплирование вероятностей переходов
     samples = np.array([stats.dirichlet.rvs(posterior_params[i], size=num_samples) for i in range(len(agency_dict))])
 
@@ -3447,7 +3457,14 @@ def matrix_migration_beta(data: pd.DataFrame, agency: str, start_date: str, end_
     )
     if method == 'disc':
         # full_df = calculate_discrete_migr_beta(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+        start_time = time.perf_counter()
+
         full_df = calculate_discrete_migr_dirichlet(data, agency, start_date, end_dates, scale, step, type_ogrn, type_date, type_rating)
+
+        end_time = time.perf_counter()
+
+        st.write(f"Время выполнения: {end_time - start_time:.4f} секунд и размер датасета: {len(data)}")
+
         # full_df_ = calculate_discrete_migr_dirichlet_2_0(data, agency, start_date, end_dates, scale, step, type_ogrn,
         #                                             type_date, type_rating)
     else:
@@ -3901,6 +3918,82 @@ def matrix_second_order(data: pd.DataFrame, agency: str, start_date: str, end_da
 
     st.write(full_dict)
 
+def compare_methods(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
+                     step: dict, type_ogrn, type_date, type_rating):
+
+    st.title('Markov process of second order for factual transitions')
+
+    agency_dict = {}
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    if agency == 'NCR':
+        agency_dict = NCR_test
+    if agency == 'AKRA':
+        agency_dict = akra
+    if agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    if agency == 'Fitch Ratings':
+        agency_dict = fitch
+    if agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    if agency == 'NRA':
+        agency_dict = nra
+
+    methods = ["Time-continous", "Dirichlet", "Discrete"]
+    method1 = st.selectbox("Выберите первый метод", methods)
+    method2 = st.selectbox("Выберите второй метод", methods)
+
+    transitions_matrix1 = None
+    transitions_matrix2 = None
+
+    if method1 == "Time-continous":
+        result_full = calculate_time_cont_migr_new(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
+        result_full = fill_empty(result_full, agency_dict)
+        result_full_df = pd.DataFrame().from_dict(result_full).fillna(0).reset_index()
+        result_full_df = get_generator(sort_df(result_full_df, agency_dict))
+        result = expm(result_full_df.to_numpy())
+        columns_ag = list(agency_dict.keys())
+        result = pd.DataFrame(result, columns=columns_ag, index=columns_ag)
+        transitions_matrix1 = result
+
+    elif method1 == "Dirichlet":
+        transitions_matrix1 = calculate_discrete_migr_dirichlet(data, agency, start_date, end_dates, scale, step,
+                                                                  type_ogrn, type_date, type_rating)
+
+    if method2 == "Time-continous":
+        result_full = calculate_time_cont_migr_new(data, agency, start_date, end_dates, step, type_ogrn, type_date,type_rating)
+        result_full = fill_empty(result_full, agency_dict)
+        result_full_df = pd.DataFrame().from_dict(result_full).fillna(0).reset_index()
+        result_full_df = get_generator(sort_df(result_full_df, agency_dict))
+        result = expm(result_full_df.to_numpy())
+        columns_ag = list(agency_dict.keys())
+        result = pd.DataFrame(result, columns=columns_ag, index=columns_ag)
+        transitions_matrix2 = result
+
+    elif method2 == "Dirichlet":
+        transitions_matrix2 = calculate_discrete_migr_dirichlet(data, agency, start_date, end_dates, scale, step,
+                                                               type_ogrn, type_date, type_rating)
+
+    if transitions_matrix1 is not None and transitions_matrix2 is not None:
+        matrix1_values = transitions_matrix1.to_numpy().flatten() * 100
+        matrix2_values = transitions_matrix2.to_numpy().flatten() * 100
+
+        rmse = np.sqrt(mean_squared_error(matrix1_values, matrix2_values))
+        mae = mean_absolute_error(matrix1_values, matrix2_values)
+
+        st.write("RMSE: ", rmse, "MAE:", mae)
+
+        # Извлекаем главные диагонали из обеих матриц переходных вероятностей
+        matrix1_diag = np.diag(transitions_matrix1.to_numpy()) * 100
+        matrix2_diag = np.diag(transitions_matrix2.to_numpy()) * 100
+
+        # Вычисляем RMSE и MAE только для главной диагонали
+        rmse_diag = np.sqrt(mean_squared_error(matrix1_diag, matrix2_diag))
+        mae_diag = mean_absolute_error(matrix1_diag, matrix2_diag)
+
+        # Выводим результаты
+        st.write("RMSE для главной диагонали: ", rmse_diag)
+        st.write("MAE для главной диагонали:", mae_diag)
 
 
 if __name__ == '__main__':
@@ -3941,9 +4034,9 @@ if __name__ == '__main__':
 
     # data = data[data[type_rating].isin(valid_keys)]
     data = data.sort_values(type_date).reset_index().drop(columns=['index'])
-    data, data_test = train_test_split(data, test_size=0.3, random_state=42)
+    # data, data_test = train_test_split(data, test_size=0.3, random_state=42)
     data = data.reset_index(drop=True)
-    data_test = data_test.reset_index(drop=True)
+    # data_test = data_test.reset_index(drop=True)
     st.write(data)
     start_date = data[type_date][0]
     end_date = data[type_date][len(data[type_date]) - 1]
@@ -3982,11 +4075,17 @@ if __name__ == '__main__':
         matrix_second_order(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
     if st.sidebar.checkbox('Compare results by quality'):
+        data, data_test = train_test_split(data, test_size=0.3, random_state=42)
+        data = data.reset_index(drop=True)
+        data_test = data_test.reset_index(drop=True)
         metric_quality(data, data_test, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
     if st.sidebar.checkbox('Compare results'):
         n = st.number_input('Write number of each predict you want to do', min_value= 1, max_value = 1000)
         get_state_by_time(data, agency, date_to_check, step, scale, type_ogrn, type_date, type_rating, n)
+
+    if st.sidebar.checkbox('Compare methods'):
+        compare_methods(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
     if st.sidebar.checkbox('Get MSE, RMSE, R ^ 2'):
         file_fact = st.file_uploader('Choose file to verify with the same step and num')
