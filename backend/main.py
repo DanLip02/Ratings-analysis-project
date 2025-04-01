@@ -3196,7 +3196,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
             new_rank = agency_dict[to_rating]
             penalty = abs((new_rank - old_rank))
             if penalty == 0:
-                penalty = 11
+                penalty = 0.5
             posterior_params[i, j] = (obj_transitions[from_rating][to_rating] + 1) / penalty
             # posterior_params[i, j] = obj_transitions[from_rating][to_rating] + 1
     # for i, from_rating in enumerate(agency_dict):
@@ -3824,52 +3824,149 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
         recall_micro_ = recall_score(data_test[type_rating].values, predicted, average='micro')
         st.write("Micri Recall predict:", recall_micro_)
 
-def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, step, col_ogrn: str, col_date: str, col_rating: str):
+# def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, step, col_ogrn: str, col_date: str, col_rating: str):
+#
+#     def create_transition_dataframe(ratings_list):
+#         """Создает DataFrame переходов второго порядка с вероятностями."""
+#         transitions = defaultdict(list)
+#
+#         # Формируем пары (S_{t-2}, S_{t-1}) -> S_t
+#         for ratings in ratings_list:
+#             for i in range(len(ratings) - 2):
+#                 pair = (ratings[i], ratings[i + 1])
+#                 next_state = ratings[i + 2]
+#                 transitions[pair].append(next_state)
+#
+#         # Создаём список строк для DataFrame
+#         data = []
+#         for pair, next_states in transitions.items():
+#             unique, counts = np.unique(next_states, return_counts=True)
+#             total = counts.sum()
+#             probabilities = {state: count / total for state, count in zip(unique, counts)}
+#             row = {'state_t-2': pair[0], 'state_t-1': pair[1], **probabilities}
+#             data.append(row)
+#
+#         # Создаём DataFrame
+#         df = pd.DataFrame(data).fillna(0)
+#         return df
+#
+#     full_step = None
+#     curent_step = None
+#     time_counter = None
+#     step_num = None
+#
+#     if 'months' in step.keys():
+#         step_num = step['months']
+#         full_step = relativedelta(months=1)
+#         curent_step = relativedelta(months=step_num)
+#         time_counter = 30
+#     elif 'years' in step.keys():
+#         step_num = step['years']
+#         full_step = relativedelta(years=1)
+#         curent_step = relativedelta(years=step_num)
+#         time_counter = 363
+#     else:
+#         step_num = step['days']
+#         full_step = relativedelta(days=1)
+#         curent_step = relativedelta(days=step_num)
+#         time_counter = 1
+#
+#     if agency == 'Expert RA':
+#         agency_dict = expert_test
+#     elif agency == 'NCR':
+#         agency_dict = NCR_test
+#     elif agency == 'AKRA':
+#         agency_dict = akra
+#     elif agency == 'S&P Global Ratings':
+#         agency_dict = s_and_p
+#     elif agency == 'Fitch Ratings':
+#         agency_dict = fitch
+#     elif agency == "Moody's Interfax Rating Agency":
+#         agency_dict = moodys
+#     elif agency == 'NRA':
+#         agency_dict = nra
+#
+#
+#     # Подготовка данных (без изменений)
+#     data_1 = data.sort_values(col_date)
+#     set_identifier = data_1[col_ogrn].unique()
+#     progress_text = "Operation in progress. Please wait."
+#     my_bar = st.progress(0, text=progress_text)
+#     values_ = []
+#     for counter , obj in enumerate(set_identifier):
+#         if pd.isna(obj): continue
+#
+#         my_bar.progress(int(100 * counter / len(set_identifier)),
+#                         text=f"Обработка {counter}/{len(set_identifier)} компаний")
+#
+#         pr = data_1.loc[data_1[col_ogrn] == obj].reset_index(drop=True).sort_values(col_date)
+#
+#         values_.append(pr[col_rating].values)
+#
+#     transition_probs = create_transition_dataframe(values_)
+#
+#     my_bar.empty()
+#
+#     return transition_probs
 
-    def create_transition_dataframe(ratings_list):
-        """Создает DataFrame переходов второго порядка с вероятностями."""
-        transitions = defaultdict(list)
 
-        # Формируем пары (S_{t-2}, S_{t-1}) -> S_t
-        for ratings in ratings_list:
-            for i in range(len(ratings) - 2):
-                pair = (ratings[i], ratings[i + 1])
-                next_state = ratings[i + 2]
-                transitions[pair].append(next_state)
-
-        # Создаём список строк для DataFrame
-        data = []
-        for pair, next_states in transitions.items():
-            unique, counts = np.unique(next_states, return_counts=True)
-            total = counts.sum()
-            probabilities = {state: count / total for state, count in zip(unique, counts)}
-            row = {'state_t-2': pair[0], 'state_t-1': pair[1], **probabilities}
-            data.append(row)
-
-        # Создаём DataFrame
-        df = pd.DataFrame(data).fillna(0)
+def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
+                        step: dict, type_ogrn, type_date, type_rating):
+    # Преобразуем DataFrame и добавим уникальные имена колонок
+    def make_unique_columns(df):
+        cols = pd.Series(df.columns)
+        for dup in cols[cols.duplicated()].unique():
+            cols[cols[cols == dup].index.values.tolist()] = [dup + f'_{i}' if i != 0 else dup for i in
+                                                             range(sum(cols == dup))]
+        df.columns = cols
         return df
 
-    full_step = None
-    curent_step = None
-    time_counter = None
-    step_num = None
+    def add_spaces_to_pairs(index_or_columns, agency_dict):
+        """Добавляет пробел между состояниями, используя agency_dict."""
+        unique_states = sorted(agency_dict.keys())  # Берем все возможные состояния
 
-    if 'months' in step.keys():
-        step_num = step['months']
-        full_step = relativedelta(months=1)
-        curent_step = relativedelta(months=step_num)
-        time_counter = 30
-    elif 'years' in step.keys():
-        step_num = step['years']
-        full_step = relativedelta(years=1)
-        curent_step = relativedelta(years=step_num)
-        time_counter = 363
-    else:
-        step_num = step['days']
-        full_step = relativedelta(days=1)
-        curent_step = relativedelta(days=step_num)
-        time_counter = 1
+        def split_pair(pair):
+            for state in unique_states:
+                if pair.startswith(state):
+                    suffix = pair[len(state):]  # Оставшаяся часть после первого состояния
+                    if suffix in unique_states:
+                        return f"{state} {suffix}"
+            return pair  # Если не нашли разделение, возвращаем без изменений
+
+        return index_or_columns.map(split_pair)
+
+    def add_spaces_and_sort(index_or_columns, agency_dict):
+        """Добавляет пробел между состояниями и сортирует пары по убыванию, согласно agency_dict."""
+        # Создаем список уникальных состояний из agency_dict
+        unique_states = sorted(agency_dict.keys(), key=lambda x: agency_dict[x], reverse=True)
+
+        def split_pair(pair):
+            """Функция для добавления пробела между состояниями в паре."""
+            for state in unique_states:
+                if pair.startswith(state):
+                    suffix = pair[len(state):]
+                    if suffix in unique_states:
+                        return f"{state} {suffix}"
+            return pair
+
+        # Добавляем пробелы между состояниями в парах
+        formatted_pairs = index_or_columns.map(split_pair)
+
+        # Создаем словарь для сортировки на основе порядка в agency_dict
+        state_order = {state: i for i, state in enumerate(unique_states)}
+
+        def sorting_key(pair):
+            """Ключ для сортировки пар по порядку в agency_dict"""
+            first, second = pair.split(" ")
+            return (state_order.get(first, float('inf')), state_order.get(second, float('inf')))
+
+        # Сортируем по убыванию, используя сортировку по порядку состояний
+        sorted_pairs = sorted(formatted_pairs, key=sorting_key, reverse=True)
+
+        return sorted_pairs
+
+
+    """Формирует матрицу переходов второго порядка для заданного агентства."""
 
     if agency == 'Expert RA':
         agency_dict = expert_test
@@ -3886,28 +3983,84 @@ def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end
     elif agency == 'NRA':
         agency_dict = nra
 
+    # Извлекаем все уникальные состояния рейтингов
+    # unique_states = sorted(data[type_rating].dropna().unique())
+    unique_states = sorted(agency_dict.keys())
 
-    # Подготовка данных (без изменений)
-    data_1 = data.sort_values(col_date)
-    set_identifier = data_1[col_ogrn].unique()
+    # Генерируем все возможные пары (i, j)
+    pairs = [x + y for x in unique_states for y in unique_states]
+    pair_to_idx = {pair: i for i, pair in enumerate(pairs)}
+
+    # Словарь для подсчета частот переходов
+    transition_counts = defaultdict(lambda: defaultdict(int))
+
+    # Обход по каждой компании (по ОГРН)
+    data_1 = data.sort_values(type_date)
+
     progress_text = "Operation in progress. Please wait."
     my_bar = st.progress(0, text=progress_text)
-    values_ = []
-    for counter , obj in enumerate(set_identifier):
-        if pd.isna(obj): continue
+    set_identifier = data_1[type_ogrn].unique()
+    counter = 0
+    for ogrn in data[type_ogrn].dropna().unique():
+        if pd.isna(ogrn): continue
 
+        counter += 1
         my_bar.progress(int(100 * counter / len(set_identifier)),
                         text=f"Обработка {counter}/{len(set_identifier)} компаний")
 
-        pr = data_1.loc[data_1[col_ogrn] == obj].reset_index(drop=True).sort_values(col_date)
+        company_data = data[data[type_ogrn] == ogrn].sort_values(by=type_rating)
+        ratings = company_data[type_rating].values
 
-        values_.append(pr[col_rating].values)
+        # Подсчет частот переходов (i, j) → (j, z)
+        for i in range(len(ratings) - 2):
+            pair = ratings[i] + ratings[i + 1]  # (i, j)
+            next_pair = ratings[i + 1] + ratings[i + 2]  # (j, z)
+            transition_counts[pair][next_pair] += 1
 
-    transition_probs = create_transition_dataframe(values_)
+    # Создаем DataFrame для матрицы переходов
+    transition_matrix = pd.DataFrame(0.0, index=pairs, columns=pairs)
 
-    my_bar.empty()
+    # Заполняем матрицу относительными частотами
+    for pair, next_states in transition_counts.items():
+        total = sum(next_states.values())
+        for next_pair, count in next_states.items():
+            transition_matrix.loc[pair, next_pair] = count / total
 
-    return transition_probs
+    # Заполняем самопереходы (если строка пустая)
+    for pair in pairs:
+        # if transition_matrix.loc[pair].sum() == 0:
+        if transition_matrix.loc[pair].sum().sum() == 0:
+            transition_matrix.loc[pair, pair] = 1.0
+
+        # Добавляем пробелы только между уникальными значениями
+    transition_matrix.index = add_spaces_to_pairs(transition_matrix.index, agency_dict)
+    transition_matrix.columns = add_spaces_to_pairs(transition_matrix.columns, agency_dict)
+
+    # Переиндексируем DataFrame – это отсортирует и переставит значения в матрице
+    transition_matrix = make_unique_columns(transition_matrix)
+
+    # Сортируем индексы и колонки согласно порядку в agency_dict
+    # sorted_columns = sorted(transition_matrix.columns, key=lambda x: agency_dict.get(x.split(" ")[0], float('inf')))
+    # sorted_index = sorted(transition_matrix.index, key=lambda x: agency_dict.get(x.split(" ")[0], float('inf')))
+    # Сортировка по первому и второму состоянию
+    sorted_columns = sorted(transition_matrix.columns, key=lambda x: (
+        agency_dict.get(x.split(" ")[0], float('inf')),
+        agency_dict.get(x.split(" ")[1], float('inf'))
+    ))
+    sorted_index = sorted(transition_matrix.index, key=lambda x: (
+        agency_dict.get(x.split(" ")[0], float('inf')),
+        agency_dict.get(x.split(" ")[1], float('inf'))
+    ))
+    # Применяем сортировку индексов и колонок
+    transition_matrix = transition_matrix.loc[sorted_index, sorted_columns]
+    # Теперь сортируем индексы и колонки в порядке убывания
+    # transition_matrix = transition_matrix.loc[transition_matrix.index].loc[:, transition_matrix.columns]
+
+    # Сортируем индексы и колонки для симметрии
+    # transition_matrix = make_unique_columns(transition_matrix)
+
+    st.write(transition_matrix)
+    print(transition_matrix)
 
 def matrix_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
