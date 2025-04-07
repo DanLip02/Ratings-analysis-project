@@ -16,6 +16,8 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 from collections import Counter, defaultdict
 from datetime import datetime
+
+from scipy.constants import precision
 from scipy.linalg import expm
 from dateutil.relativedelta import relativedelta
 import time
@@ -1482,7 +1484,7 @@ def time_cont(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, 
     check_1 = pd.DataFrame()
     name = ''
     fig = plt.figure(figsize=(15, 15))
-    plot = sns.heatmap(result, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size":10})
+    plot = sns.heatmap(result, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size":15})
     # plt.savefig(f'{directory}/time_cont_step={step}_second_avar.jpg')
     plt.close()
     # result.to_excel(f'{directory}/time_cont_step={step}_second_avar.xlsx')
@@ -3195,8 +3197,10 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
             old_rank = agency_dict[from_rating]
             new_rank = agency_dict[to_rating]
             penalty = abs((new_rank - old_rank))
+            A = 0.1
             if penalty == 0:
-                penalty = 0.5
+                penalty = A
+            # penalty = max(penalty, A)
             posterior_params[i, j] = (obj_transitions[from_rating][to_rating] + 1) / penalty
             # posterior_params[i, j] = obj_transitions[from_rating][to_rating] + 1
     # for i, from_rating in enumerate(agency_dict):
@@ -3748,36 +3752,44 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
     states_for_K_objects_pred = []
     states_for_K_objects_fact = []
 
+    # Собираем прогнозируемые рейтинги
     for obj in data[type_ogrn].unique():
         temp_ = data[data[type_ogrn] == obj]
-        data_prev = temp_[temp_[type_date] <= date_to_check].sort_values(by=type_ogrn)
-        prev_rat, prev_date = get_prev_date_raitng(data_prev, obj, date_to_check_pred, step, type_ogrn, type_date, type_rating)
+        data_prev = temp_[temp_[type_date] <= date_to_check_pred].sort_values(by=type_ogrn)
+        prev_rat, prev_date = get_prev_date_raitng(data_prev, obj, date_to_check_pred, step, type_ogrn, type_date,
+                                                   type_rating)
         if prev_rat is not None:
-            states_for_K_objects_pred.append(prev_rat)
+            states_for_K_objects_pred.append({'ogrn': obj, 'rating': prev_rat})
 
+    # Собираем фактические рейтинги
+    for obj in data[type_ogrn].unique():
+        temp_ = data[data[type_ogrn] == obj]
+        data_prev = temp_[temp_[type_date] <= date_to_check_fact].sort_values(by=type_ogrn)
+        prev_rat, prev_date = get_prev_date_raitng(data_prev, obj, date_to_check_fact, step, type_ogrn, type_date,
+                                                   type_rating)
+        if prev_rat is not None:
+            states_for_K_objects_fact.append({'ogrn': obj, 'rating': prev_rat})
+
+    # Преобразуем в DataFrame
+    df_pred = pd.DataFrame(states_for_K_objects_pred)
+    df_fact = pd.DataFrame(states_for_K_objects_fact)
+
+    # Подсчёт распределений
     states = list(agency_dict.keys())
-    # Подсчитаем частоты
-    counter_pred = Counter(states_for_K_objects_pred)
-    empirical_distribution_pred = pd.Series({s: counter_pred[s] for s in states})
+    counter_pred = Counter(df_pred['rating'])
+    empirical_distribution_pred = pd.Series({s: counter_pred[s] for s in states}).fillna(0)
     empirical_distribution_pred = empirical_distribution_pred / empirical_distribution_pred.sum()
 
-    for obj in data[type_ogrn].unique():
-        temp_ = data[data[type_ogrn] == obj]
-        data_prev = temp_[temp_[type_date] <= date_to_check].sort_values(by=type_ogrn)
-        prev_rat, prev_date = get_prev_date_raitng(data_prev, obj, date_to_check_fact, step, type_ogrn, type_date, type_rating)
-        if prev_rat is not None:
-            states_for_K_objects_fact.append(prev_rat)
-
-    counter_fact = Counter(states_for_K_objects_fact)
-    empirical_distribution_fact = pd.Series({s: counter_fact[s] for s in states})
+    counter_fact = Counter(df_fact['rating'])
+    empirical_distribution_fact = pd.Series({s: counter_fact[s] for s in states}).fillna(0)
     empirical_distribution_fact = empirical_distribution_fact / empirical_distribution_fact.sum()
 
+    # Вывод матрицы и распределений
     st.write(transition_matrix)
+    st.write("len fact: ", len(df_fact), "len pred: ", len(df_pred))
 
-    st.write("len fact: ", len(states_for_K_objects_fact), "leen pred: ", len(states_for_K_objects_pred))
     if transition_matrix is not None:
-
-        # Прогнозируем распределение на следующий период
+        # Прогноз распределения
         predicted_distribution = empirical_distribution_pred.dot(transition_matrix)
 
         st.write("Эмпирическое распределение fact:")
@@ -3786,36 +3798,64 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
         st.write("\nПредсказанное распределение на следующий период:")
         st.write(predicted_distribution)
 
+        # Сравнение по совпадающим ОГРН
+        common_ogrn = set(df_fact['ogrn']) & set(df_pred['ogrn'])
+        fact_filtered = df_fact[df_fact['ogrn'].isin(common_ogrn)].sort_values(by='ogrn')
+        pred_filtered = df_pred[df_pred['ogrn'].isin(common_ogrn)].sort_values(by='ogrn')
+
+        from sklearn.metrics import accuracy_score, confusion_matrix, recall_score, precision_score
+
+        accuracy = accuracy_score(fact_filtered['rating'], pred_filtered['rating'])
+        st.write(f"Accuracy: {accuracy:.4f}")
+
+        cm = confusion_matrix(fact_filtered['rating'], pred_filtered['rating'], labels=states)
+        st.write("Confusion matrix:")
+        st.write(cm)
+
+        recall = recall_score(fact_filtered['rating'], pred_filtered['rating'], average='macro')
+        st.write("Micro Recall (deterministic):", recall)
+
+        precision = precision_score(fact_filtered['rating'], pred_filtered['rating'], average='macro')
+        st.write("Micro Precision (deterministic):", precision)
         # Прогнозируем следующие рейтинги (детерминированный подход)
-        predicted = predict_next_ratings(states_for_K_objects_fact, transition_matrix, mode='deterministic')
+
+
+
+        # todo ANOTHER METHOD
+        print(fact_filtered['rating'])
+        predicted = predict_next_ratings(fact_filtered['rating'], transition_matrix, mode='deterministic')
         # st.write("Прогноз (deterministic):", predicted)
 
         # Прогнозируем следующие рейтинги (стохастический подход)
-        predicted_stochastic = predict_next_ratings(states_for_K_objects_fact, transition_matrix, mode='stochastic')
+        predicted_stochastic = predict_next_ratings(fact_filtered['rating'], transition_matrix, mode='stochastic')
         # st.write("Прогноз (stochastic):", predicted_stochastic)
 
-        from sklearn.metrics import accuracy_score, confusion_matrix
-
-        accuracy = accuracy_score(states_for_K_objects_pred, predicted)
+        accuracy = accuracy_score(fact_filtered['rating'], predicted)
         st.write(f"Accuracy: {accuracy:.4f}")
 
-        cm = confusion_matrix(states_for_K_objects_fact, predicted)
+        cm = confusion_matrix(fact_filtered['rating'], predicted)
         st.write(cm)
 
-        from sklearn.metrics import accuracy_score, confusion_matrix
 
-        accuracy = accuracy_score(states_for_K_objects_fact, predicted_stochastic)
+        accuracy = accuracy_score(fact_filtered['rating'], predicted_stochastic)
         st.write(f"Accuracy: {accuracy:.4f}")
 
-        cm = confusion_matrix(states_for_K_objects_fact, predicted_stochastic)
+        cm = confusion_matrix(fact_filtered['rating'], predicted_stochastic)
         st.write(cm)
 
-        from sklearn.metrics import recall_score, precision_score
-        recall_macro = recall_score(states_for_K_objects_fact, predicted, average='micro')
-        st.write("Micr Recall predict:", recall_macro)
+        # Deterministic
+        recall_macro = recall_score(fact_filtered['rating'],  predicted, average='macro')
+        st.write("Macro recall score predict:", recall_macro)
 
-        precision_macro = precision_score(states_for_K_objects_fact, predicted_stochastic, average='micro')
-        st.write("precision Recall stoch:", precision_macro)
+        recall_macro = precision_score(fact_filtered['rating'], predicted, average='macro')
+        st.write("Macro precision score predict:", recall_macro)
+
+        #Stochastic
+        precision_macro = precision_score(fact_filtered['rating'], predicted_stochastic, average='macro')
+        st.write("Macro precision score stoch:", precision_macro)
+
+        precision_macro = recall_score(fact_filtered['rating'],  predicted_stochastic, average='macro')
+        st.write("Macro recall score stoch:", precision_macro)
 
         predicted_ = predict_next_ratings(data[type_rating].values, transition_matrix, mode='deterministic')
 
@@ -4228,7 +4268,7 @@ if __name__ == '__main__':
         matrix_second_order(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
     if st.sidebar.checkbox('Compare results by quality'):
-        data, data_test = train_test_split(data, test_size=0.3, random_state=42)
+        data, data_test = train_test_split(data, test_size=0.2, random_state=42)
         data = data.reset_index(drop=True)
         data_test = data_test.reset_index(drop=True)
         metric_quality(data, data_test, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
