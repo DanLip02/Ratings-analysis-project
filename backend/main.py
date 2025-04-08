@@ -62,6 +62,30 @@ expert_test = {
 #     "A-BBB": 2,
 #     "D": 3
 # }
+# expert_test = {
+#     'AAA': 1,
+#     'AA+': 2,
+#     'AA': 3,
+#     'AA-': 4,
+#     'A+': 5,
+#     'A': 6,
+#     'A-': 7,
+#     'BBB+': 8,
+#     'BBB': 9,
+#     'BBB-': 10,
+#     'BB+': 11,
+#     'BB': 12,
+#     'BB-': 13,
+#     'B+': 14,
+#     'B': 15,
+#     'B-': 16,
+#     'CCC': 17,
+#     'CC': 18,
+#     'C': 19,
+#     'D': 20,
+#     # 'Рейтинг отозван': 21}
+# }
+
 group_expert = {1: 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
                'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
 # expert_test = {
@@ -1304,7 +1328,6 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
     time_counter = None
     step_num = None
     step_ = None
-    st.write(step)
 
     if 'months' in step.keys():
         step_num = step['months']
@@ -1446,7 +1469,7 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
 
 # TODO check scale
 def time_cont(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, step: dict, directory, type_ogrn, type_date, type_rating):
-    st.title('Markov process with continous time')
+    st.title('Continuous-time Markov chain')
     delta = datetime.strptime(end_dates, "%Y-%m-%d") - datetime.strptime(start_date, "%Y-%m-%d")
     agency_dict = {}
     # res_avar = {}
@@ -3197,7 +3220,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
             old_rank = agency_dict[from_rating]
             new_rank = agency_dict[to_rating]
             penalty = abs((new_rank - old_rank))
-            A = 0.1
+            A = 20
             if penalty == 0:
                 penalty = A
             # penalty = max(penalty, A)
@@ -3696,6 +3719,14 @@ def predict_next_ratings(current_ratings, transition_matrix, mode='deterministic
         # Извлекаем строку матрицы, соответствующую текущему рейтингу
         probs = transition_matrix.loc[rating].values
 
+        total_prob = probs.sum()
+        if not np.isclose(total_prob, 1.0):
+            if total_prob > 0:
+                probs = probs / total_prob
+            else:
+                # fallback: равномерное распределение, если всё нули
+                probs = np.ones_like(probs) / len(probs)
+
         if mode == 'deterministic':
             # Детерминированный вариант: выбираем рейтинг с максимальной вероятностью
             next_rating = transition_matrix.columns[np.argmax(probs)]
@@ -3742,8 +3773,9 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
         transition_matrix = result
 
     elif method == "Dirichlet":
-        transition_matrix = calculate_discrete_migr_dirichlet_2_0(data, agency, start_date, end_dates, scale, step, type_ogrn,type_date, type_rating)
-
+        transition_matrix = calculate_discrete_migr_dirichlet(data, agency, start_date, end_dates, scale, step, type_ogrn,type_date, type_rating)
+        n = st.number_input("choose predicct num for dirichlet", min_value=1, max_value=100)
+        transition_matrix = np.linalg.matrix_power(transition_matrix, n)
     # Пусть transition_matrix – DataFrame с матрицей переходов, а agency_dict.keys() – список состояний в том же порядке.
 
     date_to_check_pred = st.date_input('Choose date to check pred').strftime('%Y-%m-%d')
@@ -4102,13 +4134,226 @@ def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end
     st.write(transition_matrix)
     print(transition_matrix)
 
+
+def calculate_second_order_upd(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
+                           step: dict, type_ogrn, type_date, type_rating):
+    # Преобразуем DataFrame и добавим уникальные имена колонок
+    def make_unique_columns(df):
+        cols = pd.Series(df.columns)
+        for dup in cols[cols.duplicated()].unique():
+            cols[cols[cols == dup].index.values.tolist()] = [dup + f'_{i}' if i != 0 else dup for i in
+                                                             range(sum(cols == dup))]
+        df.columns = cols
+        return df
+
+    def add_spaces_to_pairs(index_or_columns, agency_dict):
+        """Добавляет пробел между состояниями, используя agency_dict."""
+        unique_states = sorted(agency_dict.keys())
+
+        def split_pair(pair):
+            for state in unique_states:
+                if pair.startswith(state):
+                    suffix = pair[len(state):]
+                    if suffix in unique_states:
+                        return f"{state} {suffix}"
+            return pair
+
+        return index_or_columns.map(split_pair)
+
+    def add_spaces_and_sort(index_or_columns, agency_dict):
+        """Добавляет пробел между состояниями и сортирует пары по убыванию, согласно agency_dict."""
+        unique_states = sorted(agency_dict.keys(), key=lambda x: agency_dict[x], reverse=True)
+
+        def split_pair(pair):
+            for state in unique_states:
+                if pair.startswith(state):
+                    suffix = pair[len(state):]
+                    if suffix in unique_states:
+                        return f"{state} {suffix}"
+            return pair
+
+        formatted_pairs = index_or_columns.map(split_pair)
+        state_order = {state: i for i, state in enumerate(unique_states)}
+
+        def sorting_key(pair):
+            first, second = pair.split(" ")
+            return (state_order.get(first, float('inf')), state_order.get(second, float('inf')))
+
+        sorted_pairs = sorted(formatted_pairs, key=sorting_key, reverse=True)
+        return sorted_pairs
+
+    """Формирует матрицу переходов второго порядка для заданного агентства."""
+
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    elif agency == 'NCR':
+        agency_dict = NCR_test
+    elif agency == 'AKRA':
+        agency_dict = akra
+    elif agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    elif agency == 'Fitch Ratings':
+        agency_dict = fitch
+    elif agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    elif agency == 'NRA':
+        agency_dict = nra
+
+    # 1) Уникальные состояния и все пары (i,j)
+    unique_states = sorted(agency_dict.keys())
+    pairs = [i + j for i in unique_states for j in unique_states]
+
+    # 2) Собираем частоты (для статистики, но не используем их в Dirichlet)
+    transition_counts = defaultdict(lambda: defaultdict(int))
+    df_sorted = data.sort_values(by=type_date)
+    for ogrn in df_sorted[type_ogrn].dropna().unique():
+        ratings = df_sorted[df_sorted[type_ogrn] == ogrn][type_rating].values
+        for k in range(len(ratings) - 2):
+            pair = ratings[k] + ratings[k + 1]
+            next_pair = ratings[k + 1] + ratings[k + 2]
+            transition_counts[pair][next_pair] += 1
+
+    # 3) Строим матрицу: для каждой пары (i,j) считаем α для всех (j,z)
+    transition_matrix = pd.DataFrame(0.0, index=pairs, columns=pairs)
+    for pair in pairs:
+        i, j = pair[0], pair[1]
+        alphas = []
+        next_pairs = []
+        for z in unique_states:
+            npair = j + z
+            old_rank = agency_dict[i]
+            new_rank = agency_dict[z]
+            penalty = abs(new_rank - old_rank)
+            # α = 1 / (1 + penalty) → большие penalty дают более «размытую» вероятность
+            alpha = 1.0 / (1.0 + penalty)
+            alphas.append(alpha)
+            next_pairs.append(npair)
+
+        alpha_sum = sum(alphas)
+        probs = [a / alpha_sum for a in alphas]
+
+        for npair, p in zip(next_pairs, probs):
+            transition_matrix.at[pair, npair] = p
+
+    # 4) Если вдруг строка нулевая (крайне маловероятно), ставим самопереход
+    for pair in pairs:
+        if transition_matrix.loc[pair].sum() == 0:
+            transition_matrix.at[pair, pair] = 1.0
+
+    # 5) Форматирование имён пар и сортировка
+    transition_matrix.index = add_spaces_to_pairs(transition_matrix.index, agency_dict)
+    transition_matrix.columns = add_spaces_to_pairs(transition_matrix.columns, agency_dict)
+    transition_matrix = make_unique_columns(transition_matrix)
+
+    # Сортировка по рейтингу (сначала i, затем j)
+    sorted_index = sorted(
+        transition_matrix.index,
+        key=lambda x: (
+            agency_dict.get(x.split(" ")[0], float('inf')),
+            agency_dict.get(x.split(" ")[1], float('inf'))
+        )
+    )
+    sorted_columns = sorted(
+        transition_matrix.columns,
+        key=lambda x: (
+            agency_dict.get(x.split(" ")[0], float('inf')),
+            agency_dict.get(x.split(" ")[1], float('inf'))
+        )
+    )
+    transition_matrix = transition_matrix.loc[sorted_index, sorted_columns]
+
+    st.write(transition_matrix)
+    print(transition_matrix)
+
+
+def make_unique_columns(df):
+    cols = pd.Series(df.columns)
+    for dup in cols[cols.duplicated()].unique():
+        cols[cols[cols == dup].index.values.tolist()] = [
+            dup + f'_{i}' if i != 0 else dup for i in range(sum(cols == dup))
+        ]
+    df.columns = cols
+    return df
+
+def pair_to_str(pair):
+    return f"{pair[0]} {pair[1]}"
+
+def calculate_second_order_with_dirichlet(
+    data: pd.DataFrame,
+    agency: str,
+    type_ogrn: str,
+    type_date: str,
+    type_rating: str
+):
+    # 0) Выбираем словарь рейтингов
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    # ... остальные агентства ...
+    else:
+        raise ValueError(f"Unknown agency: {agency}")
+
+    # 1) Уникальные состояния и все пары (i,j)
+    unique_states = sorted(agency_dict.keys(), key=lambda x: agency_dict[x])
+    pairs = [(i, j) for i in unique_states for j in unique_states]
+
+    # 2) Считаем эмпирические частоты переходов (i,j)->(j,z)
+    counts = defaultdict(lambda: defaultdict(int))
+    df_sorted = data.sort_values(by=type_date)
+    for ogrn in df_sorted[type_ogrn].dropna().unique():
+        ratings = df_sorted[df_sorted[type_ogrn] == ogrn][type_rating].values
+        for k in range(len(ratings) - 2):
+            pair = (ratings[k], ratings[k+1])
+            next_pair = (ratings[k+1], ratings[k+2])
+            counts[pair][next_pair] += 1
+
+    # 3) Формируем матрицу с учётом Dirichlet‑штрафа
+    idx = [pair_to_str(p) for p in pairs]
+    tm = pd.DataFrame(0.0, index=idx, columns=idx)
+
+    for pair in pairs:
+        i, j = pair
+        alphas, cs, next_pairs = [], [], []
+        for z in unique_states:
+            npair = (j, z)
+            penalty = abs(agency_dict[z] - agency_dict[i])
+            alpha = 1.0 / (1.0 + penalty)
+            count_ij = counts[pair].get(npair, 0)
+            alphas.append(alpha)
+            cs.append(count_ij)
+            next_pairs.append(npair)
+
+        denom = sum(c + a for c, a in zip(cs, alphas))
+        row_name = pair_to_str(pair)
+        for npair, c_val, a_val in zip(next_pairs, cs, alphas):
+            prob = (c_val + a_val) / denom if denom > 0 else 0
+            tm.at[row_name, pair_to_str(npair)] = prob
+
+    # 4) Самопереход для нулевых строк
+    for r in tm.index:
+        if tm.loc[r].sum() == 0:
+            tm.at[r, r] = 1.0
+
+    # 5) Форматирование и **возрастающая** сортировка
+    tm = make_unique_columns(tm)
+    sorted_idx = sorted(
+        tm.index,
+        key=lambda x: tuple(agency_dict[s] for s in x.split(" "))
+    )
+    sorted_cols = sorted(
+        tm.columns,
+        key=lambda x: tuple(agency_dict[s] for s in x.split(" "))
+    )
+    tm = tm.loc[sorted_idx, sorted_cols]
+
+    return tm
+
 def matrix_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
 
     st.title('Markov process of second order for factual transitions')
 
-    full_dict = calculate_second_order(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
-
+    # full_dict = calculate_second_order_upd(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
+    full_dict = calculate_second_order_with_dirichlet(data, agency, type_ogrn, type_date, type_rating)
     st.write(full_dict)
 
 def compare_methods(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
@@ -4198,200 +4443,203 @@ if __name__ == '__main__':
     # os.mkdir(directory)
     # data_1 = pd.read_excel('Output_without_dubl.xlsx')
     data = load_data(upload)
-    type_agency = st.sidebar.selectbox("Choose agency column", data.columns)
-    agency_dict_group = {'Expert RA': group_expert, 'AKRA' : {}, 'NRA' : {}, 'NCR' : {}}
-    type_date = st.sidebar.selectbox("Choose date column", data.columns)
-    type_ogrn = st.sidebar.selectbox("Choose ogrn column", data.columns)
-    type_rating = st.sidebar.selectbox("Choose rating column", data.columns)
-    type_field = st.sidebar.selectbox("Choose type column", data.columns)
-    scale = st.sidebar.selectbox("Choose scale column", data.columns)
-
-    agency = st.sidebar.selectbox("Choose one agency to check", data[type_agency].unique())
-
-    data = data[data[type_agency] == agency]
-
-    _ro_type = st.sidebar.multiselect('Choose type of companies', data[type_field].unique())
-    data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
-    type_rating_group = st.sidebar.selectbox("Choose grouped rating column (if needed)", data.columns)
-
-    #TODO choose there to add group by method (column)
-    if type_rating_group is not None:
-        type_rating = type_rating_group
-
-    #TODO choose there to add field of companies
-    if len(_ro_type) != 0 and type_field is not None:
-        data = data[data[type_field].isin(_ro_type)]
-
-    # valid_keys = list(expert_test.keys())
-    data[type_date] = pd.to_datetime(data[type_date]).dt.strftime('%Y-%m-%d')
-
-    # data = data[data[type_rating].isin(valid_keys)]
-    data = data.sort_values(type_date).reset_index().drop(columns=['index'])
-    # data, data_test = train_test_split(data, test_size=0.3, random_state=42)
-    data = data.reset_index(drop=True)
-    # data_test = data_test.reset_index(drop=True)
-    st.write(data)
-    start_date = data[type_date][0]
-    end_date = data[type_date][len(data[type_date]) - 1]
-    st.write(start_date, end_date)
-    scale = st.sidebar.multiselect('Choose scale (Be careful, do not choose different scales)',
-                                   data[data[type_agency] == agency][scale].unique())
-    # TODO here matrix_migration is year-matrix migration
-    step_type = st.sidebar.selectbox('Choose type of step', ['months', 'years', 'days'])
-    step_ = None
-    if step_type == 'months':
-        step_ = st.sidebar.number_input(f'Enter step in months', min_value=1, max_value=36)
-    elif step_type == 'years':
-        step_ = st.sidebar.number_input('Enter step in years', min_value=1, max_value=12)
+    if data is None:
+        st.warning("Add data in format of xls/xlsx")
     else:
-        step_ = st.sidebar.number_input('Enter step in years', min_value=1, max_value=365)
+        type_agency = st.sidebar.selectbox("Choose agency column", data.columns)
+        agency_dict_group = {'Expert RA': group_expert, 'AKRA' : {}, 'NRA' : {}, 'NCR' : {}}
+        type_date = st.sidebar.selectbox("Choose date column", data.columns)
+        type_ogrn = st.sidebar.selectbox("Choose identifier column", data.columns)
+        type_rating = st.sidebar.selectbox("Choose rating column", data.columns)
+        type_field = st.sidebar.selectbox("Choose type column", data.columns)
+        scale = st.sidebar.selectbox("Choose scale column", data.columns)
 
-    step = {step_type: step_}
-    date_to_check = st.sidebar.date_input('Choose date to check').strftime('%Y-%m-%d')
+        agency = st.sidebar.selectbox("Choose one agency to check", data[type_agency].unique())
 
-    if st.sidebar.checkbox('Markov process with discrete time'):
-        matrix_migration(data, agency, start_date, end_date, scale, step, date_to_check, directory, type_ogrn, type_date, type_rating)
+        data = data[data[type_agency] == agency]
 
-    if st.sidebar.checkbox('Markov process with continous time'):
-        time_cont(data, agency, start_date, end_date, step, directory, type_ogrn, type_date, type_rating)
+        _ro_type = st.sidebar.multiselect('Choose type of companies', data[type_field].unique())
+        data['Groupped_ratings'] = data[type_rating].map(agency_dict_group[agency])
+        type_rating_group = st.sidebar.selectbox("Choose grouped rating column (if needed)", data.columns)
 
-    if st.sidebar.checkbox('Markov process with Wald method'):
-        wald_migration(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+        #TODO choose there to add group by method (column)
+        if type_rating_group is not None:
+            type_rating = type_rating_group
 
-    if st.sidebar.checkbox('Markov process with beta - distribution'):
-        matrix_migration_beta(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+        #TODO choose there to add field of companies
+        if len(_ro_type) != 0 and type_field is not None:
+            data = data[data[type_field].isin(_ro_type)]
 
-    if st.sidebar.checkbox('Markov process with series - length'):
-        migration_matrix_series(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+        # valid_keys = list(expert_test.keys())
+        data[type_date] = pd.to_datetime(data[type_date]).dt.strftime('%Y-%m-%d')
 
-    if st.sidebar.checkbox('Markov model second order'):
-        matrix_second_order(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
-
-    if st.sidebar.checkbox('Compare results by quality'):
-        data, data_test = train_test_split(data, test_size=0.2, random_state=42)
+        # data = data[data[type_rating].isin(valid_keys)]
+        data = data.sort_values(type_date).reset_index().drop(columns=['index'])
+        # data, data_test = train_test_split(data, test_size=0.3, random_state=42)
         data = data.reset_index(drop=True)
-        data_test = data_test.reset_index(drop=True)
-        metric_quality(data, data_test, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+        # data_test = data_test.reset_index(drop=True)
+        st.write(data)
+        start_date = data[type_date][0]
+        end_date = data[type_date][len(data[type_date]) - 1]
+        # st.write(start_date, end_date)
+        scale = st.sidebar.multiselect('Choose scale (Be careful, do not choose different scales)',
+                                       data[data[type_agency] == agency][scale].unique())
+        # TODO here matrix_migration is year-matrix migration
+        step_type = st.sidebar.selectbox('Choose type of step', ['months', 'years', 'days'])
+        step_ = None
+        if step_type == 'months':
+            step_ = st.sidebar.number_input(f'Enter step in months', min_value=1, max_value=36)
+        elif step_type == 'years':
+            step_ = st.sidebar.number_input('Enter step in years', min_value=1, max_value=12)
+        else:
+            step_ = st.sidebar.number_input('Enter step in years', min_value=1, max_value=365)
 
-    if st.sidebar.checkbox('Compare results'):
-        n = st.number_input('Write number of each predict you want to do', min_value= 1, max_value = 1000)
-        get_state_by_time(data, agency, date_to_check, step, scale, type_ogrn, type_date, type_rating, n)
+        step = {step_type: step_}
+        date_to_check = st.sidebar.date_input('Choose date to check').strftime('%Y-%m-%d')
 
-    if st.sidebar.checkbox('Compare methods'):
-        compare_methods(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+        if st.sidebar.checkbox('Markov process with discrete time'):
+            matrix_migration(data, agency, start_date, end_date, scale, step, date_to_check, directory, type_ogrn, type_date, type_rating)
 
-    if st.sidebar.checkbox('Get MSE, RMSE, R ^ 2'):
-        file_fact = st.file_uploader('Choose file to verify with the same step and num')
-        file_pred = st.file_uploader('Choose file to predict with the same step and num')
-        # file_Bays = st.file_uploader('Choose file to predict with the same step and num (Bayes)')
-        predict = pd.read_excel(file_pred)
-        fact = pd.read_excel(file_fact)
-        # Bays = pd.read_excel(file_Bays)
-        if 'Unnamed: 0' in predict.columns:
-            predict = predict.set_index('Unnamed: 0')
-        if 'Unnamed: 0' in fact.columns:
-            fact = fact.set_index('Unnamed: 0')
-        # if 'Unnamed: 0' in Bays.columns:
-        #     Bays = Bays.set_index('Unnamed: 0')
-        MSE = 0.0
-        R_square = 0.0
-        RMSE = 0.0
+        if st.sidebar.checkbox('Markov process with continous time'):
+            time_cont(data, agency, start_date, end_date, step, directory, type_ogrn, type_date, type_rating)
 
-        fact_d = {}
-        pred_d = {}
-        i = 1
-        MSE_1 = {'Дискретный': 32.295, 'Непрерывный': 7.02582, 'Байесовский': 17.6962}   #for presentation
-        # MSE_1 = {'Дискретный-Непрерывный': 7.69, 'Байес-Непрерывный': 6.02, 'Дискретный-Байес': 1.27}
-        # MSE_2 = {'Дискретный-Непрерывный': 8.27, 'Байес-Непрерывный': 11, 'Дискретный-Байес': 1.329}
-        # MSE_3 = {'Дискретный-Непрерывный': 1.78, 'Байес-Непрерывный': 1.49, 'Дискретный-Байес': 1.196}
-        for row in fact.index:
-            j = 1
-            for col in fact.columns:
-                # if f'{i}_{j}' not in fact_d:
-                #     fact_d[f'{i}_{j}'] = []
-                # if f'{i}_{j}' not in pred_d:
-                #     pred_d[f'{i}_{j}'] = []
-                # fact_d[f'{i}_{j}'].append(fact.loc[row].at[col])
-                # pred_d[f'{i}_{j}'].append(predict.loc[row].at[col])
-                MSE += (fact.loc[row].at[col] * 100 - predict.loc[row].at[col] * 100) ** 2
-                j += 1
-            i += 1
+        if st.sidebar.checkbox('Markov process with Wald method'):
+            wald_migration(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
-        MSE = MSE / (len(fact.index) * len(fact.columns))
-        RMSE = pow(MSE, 1 / 2)
+        if st.sidebar.checkbox('Markov process with beta - distribution'):
+            matrix_migration_beta(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
-        st.write('MSE=',MSE, 'RMSE=',RMSE)
-        # fact_ = fact.to_numpy()
-        predict_ = predict.to_numpy()
-        fig = plt.figure(figsize=(15, 15))
-        # plot = sns.heatmap(r, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size": 9})
-        if st.button('Plot curve'):
-            lists = sorted(fact_d.items())  # sorted by key, return a list of tuples
+        if st.sidebar.checkbox('Markov process with series - length'):
+            migration_matrix_series(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
-            x, y = zip(*lists)  # unpack a list of pairs into two tuples
+        if st.sidebar.checkbox('Markov model second order'):
+            matrix_second_order(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
-            # plt.plot(x, y)
-            plot_fact = plt.plot(x, y)
+        if st.sidebar.checkbox('Compare results by quality'):
+            data, data_test = train_test_split(data, test_size=0.1)
+            data = data.reset_index(drop=True)
+            data_test = data_test.reset_index(drop=True)
+            metric_quality(data, data_test, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
-            lists_pred = sorted(pred_d.items())  # sorted by key, return a list of tuples
+        if st.sidebar.checkbox('Compare results'):
+            n = st.number_input('Write number of each predict you want to do', min_value= 1, max_value = 1000)
+            get_state_by_time(data, agency, date_to_check, step, scale, type_ogrn, type_date, type_rating, n)
 
-            x_pred, y_pred = zip(*lists_pred)  # unpack a list of pairs into two tuples
+        if st.sidebar.checkbox('Compare methods'):
+            compare_methods(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
-            # plt.plot(x, y)
-            plot_pred = plt.plot(x_pred, y_pred)
-            # predict.plot()
-            plt.ylabel("Вероятность перехода", fontdict={'size':20})
-            plt.xlabel("Перемещение по рейтингам", fontdict={'size':20})
-            plt.legend(["Фактическое перемещение", "Спрогнозированное перемещение"], loc="upper right", fontsize="20")
+        if st.sidebar.checkbox('Get MSE, RMSE, R ^ 2'):
+            file_fact = st.file_uploader('Choose file to verify with the same step and num')
+            file_pred = st.file_uploader('Choose file to predict with the same step and num')
+            # file_Bays = st.file_uploader('Choose file to predict with the same step and num (Bayes)')
+            predict = pd.read_excel(file_pred)
+            fact = pd.read_excel(file_fact)
+            # Bays = pd.read_excel(file_Bays)
+            if 'Unnamed: 0' in predict.columns:
+                predict = predict.set_index('Unnamed: 0')
+            if 'Unnamed: 0' in fact.columns:
+                fact = fact.set_index('Unnamed: 0')
+            # if 'Unnamed: 0' in Bays.columns:
+            #     Bays = Bays.set_index('Unnamed: 0')
+            MSE = 0.0
+            R_square = 0.0
+            RMSE = 0.0
 
-        if st.button('Plot bar'):
-            # df_1 = pd.DataFrame(MSE_1, index=MSE_1.keys())
-            # df_2 = pd.DataFrame(MSE_2, index=MSE_2.keys())
-            # df_3 = pd.DataFrame(MSE_3, index=MSE_3.keys())
-            # df_full = pd.concat([df_1, df_2, df_3], axis=0)
-            barWidth = 0.5
-            br1 = np.arange(len(MSE_1))
-            br2 = [x + barWidth for x in br1]
-            br3 = [x + barWidth for x in br2]
-            plt.bar(br1, list(MSE_1.values()), color='b', width=barWidth,
-                    edgecolor='grey', label='КРА 1')
-            # plt.bar(br2, list(MSE_2.values()), color='g', width=barWidth,
-            #         edgecolor='grey', label='КРА 2')
-            # plt.bar(br3, list(MSE_3.values()), color='b', width=barWidth,
-            #         edgecolor='grey', label='КРА 3')
-            plt.xlabel('методы', fontweight='bold', fontsize=15)
-            plt.ylabel('MSE', fontweight='bold', fontsize=15)
-            plt.xticks([r for r in range(len(MSE_1))],
-                       ['Дискретный','Непрерывный', 'Байесовский'], fontsize=14)
+            fact_d = {}
+            pred_d = {}
+            i = 1
+            MSE_1 = {'Дискретный': 32.295, 'Непрерывный': 7.02582, 'Байесовский': 17.6962}   #for presentation
+            # MSE_1 = {'Дискретный-Непрерывный': 7.69, 'Байес-Непрерывный': 6.02, 'Дискретный-Байес': 1.27}
+            # MSE_2 = {'Дискретный-Непрерывный': 8.27, 'Байес-Непрерывный': 11, 'Дискретный-Байес': 1.329}
+            # MSE_3 = {'Дискретный-Непрерывный': 1.78, 'Байес-Непрерывный': 1.49, 'Дискретный-Байес': 1.196}
+            for row in fact.index:
+                j = 1
+                for col in fact.columns:
+                    # if f'{i}_{j}' not in fact_d:
+                    #     fact_d[f'{i}_{j}'] = []
+                    # if f'{i}_{j}' not in pred_d:
+                    #     pred_d[f'{i}_{j}'] = []
+                    # fact_d[f'{i}_{j}'].append(fact.loc[row].at[col])
+                    # pred_d[f'{i}_{j}'].append(predict.loc[row].at[col])
+                    MSE += (fact.loc[row].at[col] * 100 - predict.loc[row].at[col] * 100) ** 2
+                    j += 1
+                i += 1
 
-            plt.yticks(fontsize=14)
-            plt.legend(loc="upper right", fontsize="20")
-            # plt.bar(*zip(*MSE_1.items()))
-            # plt.bar(*zip(*MSE_2.items()))
-            # plt.bar(*zip(*MSE_3.items()))
-            # plt.bar(df_full)
-            # plt.show()
-            # fig.savefig(f'results/images/_{datetime.now().strftime('%Y-%m-%d')}.jpg')
-            st.pyplot(fig)
-        # plt.savefig(f'{directory}/time_cont_step={step}_second_avar.jpg')
-        # plt.close()
+            MSE = MSE / (len(fact.index) * len(fact.columns))
+            RMSE = pow(MSE, 1 / 2)
+
+            st.write('MSE=',MSE, 'RMSE=',RMSE)
+            # fact_ = fact.to_numpy()
+            predict_ = predict.to_numpy()
+            fig = plt.figure(figsize=(15, 15))
+            # plot = sns.heatmap(r, annot=True, fmt='.3f', linewidths=.5, annot_kws={"size": 9})
+            if st.button('Plot curve'):
+                lists = sorted(fact_d.items())  # sorted by key, return a list of tuples
+
+                x, y = zip(*lists)  # unpack a list of pairs into two tuples
+
+                # plt.plot(x, y)
+                plot_fact = plt.plot(x, y)
+
+                lists_pred = sorted(pred_d.items())  # sorted by key, return a list of tuples
+
+                x_pred, y_pred = zip(*lists_pred)  # unpack a list of pairs into two tuples
+
+                # plt.plot(x, y)
+                plot_pred = plt.plot(x_pred, y_pred)
+                # predict.plot()
+                plt.ylabel("Вероятность перехода", fontdict={'size':20})
+                plt.xlabel("Перемещение по рейтингам", fontdict={'size':20})
+                plt.legend(["Фактическое перемещение", "Спрогнозированное перемещение"], loc="upper right", fontsize="20")
+
+            if st.button('Plot bar'):
+                # df_1 = pd.DataFrame(MSE_1, index=MSE_1.keys())
+                # df_2 = pd.DataFrame(MSE_2, index=MSE_2.keys())
+                # df_3 = pd.DataFrame(MSE_3, index=MSE_3.keys())
+                # df_full = pd.concat([df_1, df_2, df_3], axis=0)
+                barWidth = 0.5
+                br1 = np.arange(len(MSE_1))
+                br2 = [x + barWidth for x in br1]
+                br3 = [x + barWidth for x in br2]
+                plt.bar(br1, list(MSE_1.values()), color='b', width=barWidth,
+                        edgecolor='grey', label='КРА 1')
+                # plt.bar(br2, list(MSE_2.values()), color='g', width=barWidth,
+                #         edgecolor='grey', label='КРА 2')
+                # plt.bar(br3, list(MSE_3.values()), color='b', width=barWidth,
+                #         edgecolor='grey', label='КРА 3')
+                plt.xlabel('методы', fontweight='bold', fontsize=15)
+                plt.ylabel('MSE', fontweight='bold', fontsize=15)
+                plt.xticks([r for r in range(len(MSE_1))],
+                           ['Дискретный','Непрерывный', 'Байесовский'], fontsize=14)
+
+                plt.yticks(fontsize=14)
+                plt.legend(loc="upper right", fontsize="20")
+                # plt.bar(*zip(*MSE_1.items()))
+                # plt.bar(*zip(*MSE_2.items()))
+                # plt.bar(*zip(*MSE_3.items()))
+                # plt.bar(df_full)
+                # plt.show()
+                # fig.savefig(f'results/images/_{datetime.now().strftime('%Y-%m-%d')}.jpg')
+                st.pyplot(fig)
+            # plt.savefig(f'{directory}/time_cont_step={step}_second_avar.jpg')
+            # plt.close()
 
 
-    if st.sidebar.checkbox('Markov process with Aalen-Johansen metric'):
-        aalen_johansen_metric(data, agency, start_date, end_date, step)
+        if st.sidebar.checkbox('Markov process with Aalen-Johansen metric'):
+            aalen_johansen_metric(data, agency, start_date, end_date, step)
 
-    if st.sidebar.checkbox('Markov process with Bayesian metric'):
-        Bayes_migration(data, agency, start_date, end_date, step, type_ogrn, type_date, type_rating)
-    # convert_ratings(data, agency)
-    stop = 0
+        if st.sidebar.checkbox('Markov process with Bayesian metric'):
+            Bayes_migration(data, agency, start_date, end_date, step, type_ogrn, type_date, type_rating)
+        # convert_ratings(data, agency)
+        stop = 0
 
-    # functions for correct data from input file
-    #
-    # print(input_data)
-    # print(first_step_comp(input_data))    #first step of comparing data
-    # print(second_step_comp(input_data))   #second step of comparing data
-    # print(third_step_comp(input_data))    #third step of comapring data
-    # first_try(data_trouble)       #searching unique objects of ogrn/_name
-    # input_ogrn(data_trouble, data_['inn_'], data_['ogrn_'])
-    # correct_data(input_data, data_check)  #function to updated regions and cities by official mapper
-    # convert_ratings(data, 'Expert RA')    #function to convert old ratings to new
+        # functions for correct data from input file
+        #
+        # print(input_data)
+        # print(first_step_comp(input_data))    #first step of comparing data
+        # print(second_step_comp(input_data))   #second step of comparing data
+        # print(third_step_comp(input_data))    #third step of comapring data
+        # first_try(data_trouble)       #searching unique objects of ogrn/_name
+        # input_ogrn(data_trouble, data_['inn_'], data_['ogrn_'])
+        # correct_data(input_data, data_check)  #function to updated regions and cities by official mapper
+        # convert_ratings(data, 'Expert RA')    #function to convert old ratings to new
