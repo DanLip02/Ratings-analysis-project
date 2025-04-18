@@ -16,6 +16,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 from collections import Counter, defaultdict
 from datetime import datetime
+from sklearn.metrics import accuracy_score
 
 from scipy.constants import precision
 from scipy.linalg import expm
@@ -3220,7 +3221,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
             old_rank = agency_dict[from_rating]
             new_rank = agency_dict[to_rating]
             penalty = abs((new_rank - old_rank))
-            A = 20
+            A = 0.3
             if penalty == 0:
                 penalty = A
             # penalty = max(penalty, A)
@@ -3759,7 +3760,9 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
         agency_dict = nra
 
     transition_matrix = None
-    method = st.radio("Choose method to compare results", ["Discrete", "Time-continous", "Dirichlet", "Basec Bayes"])
+    method = st.radio("Choose method to compare results", ["Discrete", "Time-continous", "Dirichlet", "Basec Bayes", "Basic"])
+    date_to_check_pred = st.date_input('Choose date to check pred').strftime('%Y-%m-%d')
+    date_to_check_fact = st.date_input('Choose date to check fact').strftime('%Y-%m-%d')
 
     if method == "Time-continous":
         result_full = calculate_time_cont_migr_new(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
@@ -3777,9 +3780,43 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
         n = st.number_input("choose predicct num for dirichlet", min_value=1, max_value=100)
         transition_matrix = np.linalg.matrix_power(transition_matrix, n)
     # Пусть transition_matrix – DataFrame с матрицей переходов, а agency_dict.keys() – список состояний в том же порядке.
+    elif method == "Basic":
+        df = data
+        # df_pred = df[df[type_date] <= date_to_check_pred][[type_ogrn, type_rating]].rename(columns={type_rating: 'rating_pred'})
+        # df_fact = df[df[type_date] >= date_to_check_fact][[type_ogrn, type_rating]].rename(columns={type_rating: 'rating_fact'})
+        # 1) Кандидаты для прогноза: все записи с датой ≤ date_pred
+        candidates_pred = df[df[type_date] <= date_to_check_pred].copy()
+        # Для каждого ОГРН оставляем запись с макс. датой (ближайшей снизу)
+        df_pred = (
+            candidates_pred
+            .sort_values([type_ogrn, type_date])
+            .drop_duplicates(subset=type_ogrn, keep='last')
+            [[type_ogrn, type_rating]]
+            .rename(columns={type_rating: 'rating_pred'})
+        )
 
-    date_to_check_pred = st.date_input('Choose date to check pred').strftime('%Y-%m-%d')
-    date_to_check_fact = st.date_input('Choose date to check fact').strftime('%Y-%m-%d')
+        # 2) Кандидаты для факта: все записи с датой ≥ date_fact
+        candidates_fact = df[df[type_date] <= date_to_check_fact].copy()
+        # Для каждого ОГРН оставляем запись с мин. датой (ближайшей сверху)
+        df_fact = (
+            candidates_fact
+            .sort_values([type_ogrn, type_date])
+            .drop_duplicates(subset=type_ogrn, keep='first')
+            [[type_ogrn, type_rating]]
+            .rename(columns={type_rating: 'rating_fact'})
+        )
+
+        merged = pd.merge(df_pred, df_fact, on=type_ogrn, how='inner')
+        st.write(df_pred)
+        from sklearn.metrics import accuracy_score
+        # Вывод accuracy
+        if not merged.empty:
+            acc = accuracy_score(merged['rating_fact'], merged['rating_pred'])
+            st.success(f"🎯 Accuracy между {date_to_check_pred} и {date_to_check_fact}: **{acc:.4f}**")
+            st.dataframe(merged)
+            st.write(len(merged))
+        else:
+            st.warning("Нет пересечений по OGRN между выбранными датами.")
 
     states_for_K_objects_pred = []
     states_for_K_objects_fact = []
@@ -3980,7 +4017,29 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
 #     my_bar.empty()
 #
 #     return transition_probs
+def get_initial_pair_distribution(data, type_ogrn, type_rating, type_date, target_date, agency_dict):
+    """
+    Вычисляет вектор распределения по парам (i, j) на момент target_date
+    """
+    pair_counts = defaultdict(int)
 
+    # Фильтруем только данные до даты прогноза
+    data_filtered = data[data[type_date] < target_date]
+    data_filtered = data_filtered.sort_values([type_ogrn, type_date])
+
+    for ogrn, group in data_filtered.groupby(type_ogrn):
+        ratings = group[type_rating].dropna().values
+        if len(ratings) >= 2:
+            i, j = ratings[-2], ratings[-1]
+            pair = f"{i} {j}"
+            if i in agency_dict and j in agency_dict:
+                pair_counts[pair] += 1
+
+    # Преобразуем вектор
+    total = sum(pair_counts.values())
+    pair_distribution = {k: v / total for k, v in pair_counts.items()}
+
+    return pd.Series(pair_distribution).sort_index()
 
 def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
                         step: dict, type_ogrn, type_date, type_rating):
@@ -4134,163 +4193,36 @@ def calculate_second_order(data: pd.DataFrame, agency: str, start_date: str, end
     st.write(transition_matrix)
     print(transition_matrix)
 
-
-def calculate_second_order_upd(data: pd.DataFrame, agency: str, start_date: str, end_dates: str,
-                           step: dict, type_ogrn, type_date, type_rating):
-    # Преобразуем DataFrame и добавим уникальные имена колонок
-    def make_unique_columns(df):
-        cols = pd.Series(df.columns)
-        for dup in cols[cols.duplicated()].unique():
-            cols[cols[cols == dup].index.values.tolist()] = [dup + f'_{i}' if i != 0 else dup for i in
-                                                             range(sum(cols == dup))]
-        df.columns = cols
-        return df
-
-    def add_spaces_to_pairs(index_or_columns, agency_dict):
-        """Добавляет пробел между состояниями, используя agency_dict."""
-        unique_states = sorted(agency_dict.keys())
-
-        def split_pair(pair):
-            for state in unique_states:
-                if pair.startswith(state):
-                    suffix = pair[len(state):]
-                    if suffix in unique_states:
-                        return f"{state} {suffix}"
-            return pair
-
-        return index_or_columns.map(split_pair)
-
-    def add_spaces_and_sort(index_or_columns, agency_dict):
-        """Добавляет пробел между состояниями и сортирует пары по убыванию, согласно agency_dict."""
-        unique_states = sorted(agency_dict.keys(), key=lambda x: agency_dict[x], reverse=True)
-
-        def split_pair(pair):
-            for state in unique_states:
-                if pair.startswith(state):
-                    suffix = pair[len(state):]
-                    if suffix in unique_states:
-                        return f"{state} {suffix}"
-            return pair
-
-        formatted_pairs = index_or_columns.map(split_pair)
-        state_order = {state: i for i, state in enumerate(unique_states)}
-
-        def sorting_key(pair):
-            first, second = pair.split(" ")
-            return (state_order.get(first, float('inf')), state_order.get(second, float('inf')))
-
-        sorted_pairs = sorted(formatted_pairs, key=sorting_key, reverse=True)
-        return sorted_pairs
-
-    """Формирует матрицу переходов второго порядка для заданного агентства."""
-
-    if agency == 'Expert RA':
-        agency_dict = expert_test
-    elif agency == 'NCR':
-        agency_dict = NCR_test
-    elif agency == 'AKRA':
-        agency_dict = akra
-    elif agency == 'S&P Global Ratings':
-        agency_dict = s_and_p
-    elif agency == 'Fitch Ratings':
-        agency_dict = fitch
-    elif agency == "Moody's Interfax Rating Agency":
-        agency_dict = moodys
-    elif agency == 'NRA':
-        agency_dict = nra
-
-    # 1) Уникальные состояния и все пары (i,j)
-    unique_states = sorted(agency_dict.keys())
-    pairs = [i + j for i in unique_states for j in unique_states]
-
-    # 2) Собираем частоты (для статистики, но не используем их в Dirichlet)
-    transition_counts = defaultdict(lambda: defaultdict(int))
-    df_sorted = data.sort_values(by=type_date)
-    for ogrn in df_sorted[type_ogrn].dropna().unique():
-        ratings = df_sorted[df_sorted[type_ogrn] == ogrn][type_rating].values
-        for k in range(len(ratings) - 2):
-            pair = ratings[k] + ratings[k + 1]
-            next_pair = ratings[k + 1] + ratings[k + 2]
-            transition_counts[pair][next_pair] += 1
-
-    # 3) Строим матрицу: для каждой пары (i,j) считаем α для всех (j,z)
-    transition_matrix = pd.DataFrame(0.0, index=pairs, columns=pairs)
-    for pair in pairs:
-        i, j = pair[0], pair[1]
-        alphas = []
-        next_pairs = []
-        for z in unique_states:
-            npair = j + z
-            old_rank = agency_dict[i]
-            new_rank = agency_dict[z]
-            penalty = abs(new_rank - old_rank)
-            # α = 1 / (1 + penalty) → большие penalty дают более «размытую» вероятность
-            alpha = 1.0 / (1.0 + penalty)
-            alphas.append(alpha)
-            next_pairs.append(npair)
-
-        alpha_sum = sum(alphas)
-        probs = [a / alpha_sum for a in alphas]
-
-        for npair, p in zip(next_pairs, probs):
-            transition_matrix.at[pair, npair] = p
-
-    # 4) Если вдруг строка нулевая (крайне маловероятно), ставим самопереход
-    for pair in pairs:
-        if transition_matrix.loc[pair].sum() == 0:
-            transition_matrix.at[pair, pair] = 1.0
-
-    # 5) Форматирование имён пар и сортировка
-    transition_matrix.index = add_spaces_to_pairs(transition_matrix.index, agency_dict)
-    transition_matrix.columns = add_spaces_to_pairs(transition_matrix.columns, agency_dict)
-    transition_matrix = make_unique_columns(transition_matrix)
-
-    # Сортировка по рейтингу (сначала i, затем j)
-    sorted_index = sorted(
-        transition_matrix.index,
-        key=lambda x: (
-            agency_dict.get(x.split(" ")[0], float('inf')),
-            agency_dict.get(x.split(" ")[1], float('inf'))
-        )
-    )
-    sorted_columns = sorted(
-        transition_matrix.columns,
-        key=lambda x: (
-            agency_dict.get(x.split(" ")[0], float('inf')),
-            agency_dict.get(x.split(" ")[1], float('inf'))
-        )
-    )
-    transition_matrix = transition_matrix.loc[sorted_index, sorted_columns]
-
-    st.write(transition_matrix)
-    print(transition_matrix)
-
-
-def make_unique_columns(df):
-    cols = pd.Series(df.columns)
-    for dup in cols[cols.duplicated()].unique():
-        cols[cols[cols == dup].index.values.tolist()] = [
-            dup + f'_{i}' if i != 0 else dup for i in range(sum(cols == dup))
-        ]
-    df.columns = cols
-    return df
-
-def pair_to_str(pair):
-    return f"{pair[0]} {pair[1]}"
-
 def calculate_second_order_with_dirichlet(
     data: pd.DataFrame,
     agency: str,
     type_ogrn: str,
     type_date: str,
-    type_rating: str
+    type_rating: str,
+    date_start=None
 ):
+    def make_unique_columns(df):
+        cols = pd.Series(df.columns)
+        for dup in cols[cols.duplicated()].unique():
+            cols[cols[cols == dup].index.values.tolist()] = [
+                dup + f'_{i}' if i != 0 else dup for i in range(sum(cols == dup))
+            ]
+        df.columns = cols
+        return df
+
+    def pair_to_str(pair):
+        return f"{pair[0]} {pair[1]}"
+
     # 0) Выбираем словарь рейтингов
     if agency == 'Expert RA':
         agency_dict = expert_test
     # ... остальные агентства ...
     else:
         raise ValueError(f"Unknown agency: {agency}")
+
+    if date_start is not None:
+        st.write(date_start)
+        data = data[data[type_date] <= date_start]
 
     # 1) Уникальные состояния и все пары (i,j)
     unique_states = sorted(agency_dict.keys(), key=lambda x: agency_dict[x])
@@ -4316,7 +4248,10 @@ def calculate_second_order_with_dirichlet(
         for z in unique_states:
             npair = (j, z)
             penalty = abs(agency_dict[z] - agency_dict[i])
-            alpha = 1.0 / (1.0 + penalty)
+            if penalty == 0:
+                penalty = 0.1
+            # alpha = 1.0 / (1.0 + penalty)
+            alpha = 1 / penalty
             count_ij = counts[pair].get(npair, 0)
             alphas.append(alpha)
             cs.append(count_ij)
@@ -4347,14 +4282,285 @@ def calculate_second_order_with_dirichlet(
 
     return tm
 
+
+def get_true_z(company_ratings, start_date, end_date, type_date, type_rating):
+    # Рейтинги до start_date и после
+    ratings_before = company_ratings[company_ratings[type_date] < start_date]
+    ratings_after = company_ratings[
+        (company_ratings[type_date] >= start_date) &
+        (company_ratings[type_date] <= end_date)
+        ]
+
+    if len(ratings_before) < 2 or len(ratings_after) == 0:
+        return None, None
+
+    # Последние два рейтинга до start_date
+    last_two = ratings_before[type_rating].iloc[-2:].values
+    i, j = last_two[0], last_two[1]
+
+    # Фактический рейтинг на end_date
+    z_true = ratings_after[type_rating].iloc[-1]
+
+    return (i, j), z_true
+
+def calculate_accuracy(data, tm, agency_dict, type_ogrn, type_date, type_rating, start_date, end_date):
+    # start_date = pd.to_datetime(start_date)
+    # end_date = pd.to_datetime(end_date)
+
+    companies = data[type_ogrn].unique()
+    correct = 0
+    total = 0
+
+    for ogrn in companies:
+        company_data = data[data[type_ogrn] == ogrn].sort_values(type_date)
+        if len(company_data) == 0:
+            continue
+
+        (i, j), z_true = get_true_z(
+            company_data, start_date, end_date, type_date, type_rating
+        )
+        if (i, j) is None:
+            continue
+
+        pair_str = f"{i} {j}"
+        if pair_str not in tm.index:
+            continue
+
+        # Предсказание z
+        try:
+            row = tm.loc[pair_str]
+            max_prob_col = row.idxmax()
+            _, z_pred = max_prob_col.split()
+
+            if agency_dict.get(z_pred, None) == agency_dict.get(z_true, None):
+                correct += 1
+            total += 1
+        except:
+            continue
+
+    return correct / total if total > 0 else 0
+
+
+def evaluate_prediction_with_k_power(
+        df_pred_pairs: pd.DataFrame,
+        df_fact_ratings: pd.DataFrame,
+        transition_matrix: pd.DataFrame,
+        k: int,
+        agency_dict: dict
+):
+    from sklearn.metrics import accuracy_score, confusion_matrix
+    # Список рейтингов
+    states = list(agency_dict.keys())
+
+    # Подготовим матрицу второго порядка: строки и столбцы в нужном порядке
+    # transition_matrix = transition_matrix.reindex(index=states, columns=states).fillna(0)
+    #
+    # # Возведение в степень
+    # transition_matrix_k = np.linalg.matrix_power(transition_matrix.to_numpy(), k)
+    # transition_matrix_k = pd.DataFrame(transition_matrix_k, index=states, columns=states)
+    transition_matrix_k = np.linalg.matrix_power(transition_matrix.to_numpy(), k)
+    transition_matrix_k = pd.DataFrame(transition_matrix_k, index=transition_matrix.index, columns=transition_matrix.columns)
+    # Эмпирическое распределение
+    counter_pred = df_pred_pairs['pair'].value_counts()
+    # st.write(counter_pred)
+    # Преобразуем строки вида "(i, j)" в пару элементов
+    # ratings = df_pred_pairs['pair'].str.split(' ').explode().explode()
+
+    # Теперь ratings — это Series с рейтингами. Посчитаем их частоты.
+    # ratings = ratings.value_counts()
+    # Создание эмпирического распределения по отдельным рейтингам
+    # empirical_distribution_pred = pd.Series({s: ratings.get(s, 0) for s in states}, index=states)
+
+    empirical_distribution_pred = pd.Series({s: counter_pred.get(s, 0) for s in states}, index=states)
+    empirical_distribution_pred = empirical_distribution_pred / empirical_distribution_pred.sum()
+
+    # Эмпирическое распределение фактическое
+    counter_fact = df_fact_ratings['rating'].value_counts()
+    empirical_distribution_fact = pd.Series({s: counter_fact.get(s, 0) for s in states}, index=states)
+    empirical_distribution_fact = empirical_distribution_fact / empirical_distribution_fact.sum()
+
+    # Прогноз
+    empirical_distribution_pred = empirical_distribution_pred.reindex(transition_matrix_k.index)
+    predicted_distribution = empirical_distribution_pred.dot(transition_matrix_k)
+    st.write('prognoz', predicted_distribution, transition_matrix, empirical_distribution_pred)
+    # Accuracy по общим ОГРН
+    common_ogrn = set(df_pred_pairs['ogrn']) & set(df_fact_ratings['ogrn'])
+    pred_filtered = df_pred_pairs[df_pred_pairs['ogrn'].isin(common_ogrn)].sort_values(by='ogrn')
+    fact_filtered = df_fact_ratings[df_fact_ratings['ogrn'].isin(common_ogrn)].sort_values(by='ogrn')
+
+    # Убедимся, что всё по одному порядку
+    assert all(pred_filtered['ogrn'].values == fact_filtered['ogrn'].values)
+
+    # Accuracy и confusion matrix
+    accuracy = accuracy_score(fact_filtered['rating'], pred_filtered['pair'])
+    cm = confusion_matrix(fact_filtered['rating'], pred_filtered['pair'], labels=states)
+
+    return accuracy, cm, predicted_distribution, empirical_distribution_fact
+
 def matrix_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
 
     st.title('Markov process of second order for factual transitions')
 
-    # full_dict = calculate_second_order_upd(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
-    full_dict = calculate_second_order_with_dirichlet(data, agency, type_ogrn, type_date, type_rating)
-    st.write(full_dict)
+    agency_dict = {}
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+
+    date_ = str(st.date_input("Choose start date"))
+    # full_dict = calculate_second_order(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
+    full_marix = calculate_second_order_with_dirichlet(data, agency, type_ogrn, type_date, type_rating, date_)
+
+    initial_vector = get_initial_pair_distribution(
+        data=data,
+        type_ogrn=type_ogrn,
+        type_rating=type_rating,
+        type_date=type_date,
+        target_date=date_,
+        agency_dict=agency_dict
+    )
+
+    # Заполним отсутствующие пары нулями (важно для соответствия размерам матрицы)
+    for pair in full_marix.index:
+        if pair not in initial_vector:
+            initial_vector[pair] = 0.0
+
+    initial_vector = initial_vector[full_marix.index]  # порядок
+    # st.write(initial_vector)
+    # st.write(full_marix)
+
+    # 1) Функция для получения пары (i,j) перед датой
+    def get_last_two_ratings_before(df: pd.DataFrame, type_date: str, type_rating: str, cutoff_date):
+        """
+        df уже отфильтрован до одного объекта и отсортирован по type_date.
+        Возвращает кортеж (i, j) последних двух рейтингов до cutoff_date, или None.
+        """
+        df[type_date] = pd.to_datetime(df[type_date], errors='coerce')
+        cutoff = pd.to_datetime(cutoff_date)
+        past = df[df[type_date] <= cutoff][type_rating].dropna().values
+        if len(past) >= 2:
+            return past[-2], past[-1]
+        return None
+
+    # 2) Функция для получения единственного рейтинга ровно на дате
+    def get_rating_on_date(df: pd.DataFrame, type_date: str, type_rating: str, target_date):
+        df[type_date] = pd.to_datetime(df[type_date], errors='coerce')
+        tgt = pd.to_datetime(target_date)
+        # все записи ровно на эту дату, берём последний
+        vals = df[df[type_date] <= tgt][type_rating].dropna().values
+        return vals[-1] if len(vals) > 0 else None
+
+    def raise_second_order_matrix_to_power(matrix_df, agency_dict, power):
+        states = list(agency_dict.keys())
+        pair_states = [f"{i} {j}" for i in states for j in states]
+
+        matrix_df = matrix_df.loc[pair_states, pair_states]
+        mat_np = matrix_df.to_numpy()
+
+        mat_power = np.linalg.matrix_power(mat_np, power)
+
+        return pd.DataFrame(mat_power, index=pair_states, columns=pair_states)
+
+    # 3) В вашем Streamlit-коде:
+    date_to_check_pred = st.date_input('Choose date to check pred')
+    date_to_check_fact = st.date_input('Choose date to check fact')
+
+    # Собираем пары (i,j) для прогноза
+    pred_list = []
+    for obj in data[type_ogrn].unique():
+        tmp = data[data[type_ogrn] == obj].sort_values(by=type_date)
+        pair = get_last_two_ratings_before(tmp, type_date, type_rating, date_to_check_pred)
+        if pair is not None:
+            pred_list.append({'ogrn': obj, 'pair': f"{pair[0]} {pair[1]}"})
+    df_pred_pairs = pd.DataFrame(pred_list)
+
+    # Собираем фактические z
+    fact_list = []
+    for obj in data[type_ogrn].unique():
+        tmp = data[data[type_ogrn] == obj].sort_values(by=type_date)
+        rating = get_rating_on_date(tmp, type_date, type_rating, date_to_check_fact)
+        if rating is not None:
+            fact_list.append({'ogrn': obj, 'rating': rating})
+    df_fact_ratings = pd.DataFrame(fact_list)
+
+    # Строим вашу матрицу переходов второго порядка
+    transition_matrix = calculate_second_order_with_dirichlet(
+        data, agency, type_ogrn, type_date, type_rating
+    )  # DataFrame с индексами "i j" и колонками "j z"
+    n = st.number_input('Enter predict num', min_value=1, max_value=100)
+    # transition_matrix = raise_second_order_matrix_to_power(transition_matrix, agency_dict, power=n)
+    # Строим тепловую карту для матрицы переходов
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(transition_matrix, fmt='.3f', linewidths=.5, annot_kws={"size":10})
+    print(len(transition_matrix))
+    plt.title("Тепловая карта матрицы переходов")
+    plt.xlabel("Состояния (j)")
+    plt.ylabel("Состояния (i)")
+    st.pyplot()  # Отображаем график в Streamlit
+
+    # Подготовка для умножения
+    pairs = list(transition_matrix.index)
+    cols = list(transition_matrix.columns)
+    pair_to_idx = {p: idx for idx, p in enumerate(pairs)}
+
+    # Для каждой компании из пересечения делаем прогноз
+    common = set(df_pred_pairs['ogrn']) & set(df_fact_ratings['ogrn'])
+    y_true = []
+    y_pred = []
+
+    for ogrn in common:
+        pair_str = df_pred_pairs.loc[df_pred_pairs['ogrn'] == ogrn, 'pair'].iloc[0]
+        z_true = df_fact_ratings.loc[df_fact_ratings['ogrn'] == ogrn, 'rating'].iloc[0]
+        # если пара есть в матрице
+        if pair_str not in pair_to_idx:
+            continue
+
+        # one-hot
+        one_hot = np.zeros(len(pairs))
+        one_hot[pair_to_idx[pair_str]] = 1.0
+
+        # перемножаем
+        probs = one_hot @ transition_matrix.values  # длина = len(cols)
+
+        # сводим по z
+        z_probs = defaultdict(float)
+        for idx, p in enumerate(probs):
+            z = cols[idx].split(" ")[1]
+            z_probs[z] += p
+
+        # argmax
+        if not z_probs:
+            continue
+        z_pred = max(z_probs.items(), key=lambda x: x[1])[0]
+
+        y_pred.append(z_pred)
+        y_true.append(z_true)
+
+    from sklearn.metrics import accuracy_score, confusion_matrix
+
+    # Считаем и выводим
+    accuracy = accuracy_score(y_true, y_pred) if y_true else float('nan')
+    cm = confusion_matrix(y_true, y_pred, labels=list(agency_dict.keys()))
+
+    st.write("Количество проверенных компаний:", len(y_true))
+    st.write(f"Accuracy: {accuracy:.4f}")
+    st.write("Confusion matrix:")
+    st.write(pd.DataFrame(cm, index=agency_dict.keys(), columns=agency_dict.keys()))
+
+    accuracy, cm, predicted_dist, empirical_fact_dist = evaluate_prediction_with_k_power(
+        df_pred_pairs=df_pred_pairs,
+        df_fact_ratings=df_fact_ratings,
+        transition_matrix=transition_matrix,
+        k=n,  # или любой другой порядок
+        agency_dict=agency_dict
+    )
+
+    st.write(f"Accuracy (k={n}): {accuracy:.4f}")
+    st.write("Confusion matrix:")
+    st.write(cm)
+    st.write("Предсказанное распределение:")
+    st.write(predicted_dist)
+    st.write("Фактическое распределение:")
+    st.write(empirical_fact_dist)
 
 def compare_methods(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
                      step: dict, type_ogrn, type_date, type_rating):
