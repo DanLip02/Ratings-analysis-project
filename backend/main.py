@@ -49,44 +49,114 @@ import time
 #                'BB': 5, 'B': 6, 'CCC': 7, 'CC': 8, 'C': 9, 'D': 10}
 # expert_test = {'AAA': 1, 'AA': 2, 'A': 3, 'BBB': 4,
 #                'BB': 5, 'B': 6, 'C': 7, 'D': 8}
-expert_test = {
-    "AAA-AA": 1,
-    "AA-A": 2,
-    "A-BBB": 3,
-    "BB": 4,
-    "B": 5,
-    "CCC-C": 6,
-    "D": 7
-}
+# expert_test = {
+#     "AAA-AA": 1,
+#     "AA-A": 2,
+#     "A-BBB": 3,
+#     "BB": 4,
+#     "B": 5,
+#     "CCC-C": 6,
+#     "D": 7
+# }
 # expert_test = {
 #     "AAA-AA": 1,
 #     "A-BBB": 2,
 #     "D": 3
 # }
-# expert_test = {
-#     'AAA': 1,
-#     'AA+': 2,
-#     'AA': 3,
-#     'AA-': 4,
-#     'A+': 5,
-#     'A': 6,
-#     'A-': 7,
-#     'BBB+': 8,
-#     'BBB': 9,
-#     'BBB-': 10,
-#     'BB+': 11,
-#     'BB': 12,
-#     'BB-': 13,
-#     'B+': 14,
-#     'B': 15,
-#     'B-': 16,
-#     'CCC': 17,
-#     'CC': 18,
-#     'C': 19,
-#     'D': 20,
-#     # 'Рейтинг отозван': 21}
-# }
+expert_test = {
+    'AAA': 1,
+    'AA+': 2,
+    'AA': 3,
+    'AA-': 4,
+    'A+': 5,
+    'A': 6,
+    'A-': 7,
+    'BBB+': 8,
+    'BBB': 9,
+    'BBB-': 10,
+    'BB+': 11,
+    'BB': 12,
+    'BB-': 13,
+    'B+': 14,
+    'B': 15,
+    'B-': 16,
+    'CCC': 17,
+    'CC': 18,
+    'C': 19,
+    'D': 20,
+    # 'Рейтинг отозван': 21}
+}
+akra = {
+    'AAA': 1,
+    'AA+': 2,
+    'AA': 3,
+    'AA-': 4,
+    'A+': 5,
+    'A': 6,
+    'A-': 7,
+    'BBB+': 8,
+    'BBB': 9,
+    'BBB-': 10,
+    'BB+': 11,
+    'BB': 12,
+    'BB-': 13,
+    'B+': 14,
+    'B': 15,
+    'B-': 16,
+    'CCC': 17,
+    'CC': 18,
+    'C': 19,
+    'D': 20,
+    # 'Рейтинг отозван': 21}
+}
 
+NCR_test = {
+    'AAA': 1,
+    'AA+': 2,
+    'AA': 3,
+    'AA-': 4,
+    'A+': 5,
+    'A': 6,
+    'A-': 7,
+    'BBB+': 8,
+    'BBB': 9,
+    'BBB-': 10,
+    'BB+': 11,
+    'BB': 12,
+    'BB-': 13,
+    'B+': 14,
+    'B': 15,
+    'B-': 16,
+    'CCC': 17,
+    'CC': 18,
+    'C': 19,
+    'D': 20,
+    # 'Рейтинг отозван': 21}
+}
+
+nra = {
+    'AAA': 1,
+    'AA+': 2,
+    'AA': 3,
+    'AA-': 4,
+    'A+': 5,
+    'A': 6,
+    'A-': 7,
+    'BBB+': 8,
+    'BBB': 9,
+    'BBB-': 10,
+    'BB+': 11,
+    'BB': 12,
+    'BB-': 13,
+    'B+': 14,
+    'B': 15,
+    'B-': 16,
+    'CCC': 17,
+    'CC': 18,
+    'C': 19,
+    'D': 20,
+    # 'Рейтинг отозван': 21}
+}
 group_expert = {1: 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
                'BB': 'BB', 'B': 'B', 'CCC': 'C', 'CC': 'C', 'C': 'C', 'D': 'D'}
 # expert_test = {
@@ -136,31 +206,31 @@ group_expert = {1: 'AAA', 'AA': 'AA', 'A': 'A', 'BBB': 'BBB',
 #     # 'Рейтинг отозван': 20
 # }
 
-NCR_test = {
-    'AAA': 1,
-    'AA': 2,
-    'A': 3,
-    'BBB': 4,
-    'BB': 5,
-    'B': 6,
-    'C': 7,
-    'D': 8,
-}
+# NCR_test = {
+#     'AAA': 1,
+#     'AA': 2,
+#     'A': 3,
+#     'BBB': 4,
+#     'BB': 5,
+#     'B': 6,
+#     'C': 7,
+#     'D': 8,
+# }
 # expert_test = {
 #     'A' : 1,
 #     'B' : 2,
 #     'D' : 3
 # }
-akra = {
-    'AAA': 1,
-    'AA': 2,
-    'A': 3,
-    'BBB': 4,
-    'BB': 5,
-    'B': 6,
-    'C': 7,
-    'D': 8,
-}
+# akra = {
+#     'AAA': 1,
+#     'AA': 2,
+#     'A': 3,
+#     'BBB': 4,
+#     'BB': 5,
+#     'B': 6,
+#     'C': 7,
+#     'D': 8,
+# }
 # akra = {
 #     'AAA(RU)': 1,
 #     'AA+(RU)': 2,
@@ -255,29 +325,29 @@ moodys = {'Aaa.ru': 1,
           'Ca.ru': 20,
           'C.ru': 21,
           }
-nra = {
-    'AAA|ru|': 1,
-    'AA+|ru|': 2,
-    'AA|ru|': 3,
-    'AA-|ru|': 4,
-    'A+|ru|': 5,
-    'A|ru|': 6,
-    'A-|ru|': 7,
-    'BBB+|ru|': 8,
-    'BBB|ru|': 9,
-    'BBB-|ru|': 10,
-    'BB+|ru|': 11,
-    'BB|ru|': 12,
-    'BB-|ru|': 13,
-    'B+|ru|': 14,
-    'B|ru|': 15,
-    'B-|ru|': 16,
-    'CCC|ru|': 17,
-    'CC|ru|': 18,
-    'C|ru|': 19,
-    'D|ru|': 20,
-    # 'Рейтинг отозван': 21
-}
+# nra = {
+#     'AAA|ru|': 1,
+#     'AA+|ru|': 2,
+#     'AA|ru|': 3,
+#     'AA-|ru|': 4,
+#     'A+|ru|': 5,
+#     'A|ru|': 6,
+#     'A-|ru|': 7,
+#     'BBB+|ru|': 8,
+#     'BBB|ru|': 9,
+#     'BBB-|ru|': 10,
+#     'BB+|ru|': 11,
+#     'BB|ru|': 12,
+#     'BB-|ru|': 13,
+#     'B+|ru|': 14,
+#     'B|ru|': 15,
+#     'B-|ru|': 16,
+#     'CCC|ru|': 17,
+#     'CC|ru|': 18,
+#     'C|ru|': 19,
+#     'D|ru|': 20,
+#     # 'Рейтинг отозван': 21
+# }
 
 default = {'Expert RA': 'D', 'Fitch Ratings': 'D(rus)',
            'S&P Global Ratings': 'ruD', 'AKRA': 'D(RU)', "Moody's Interfax Rating Agency": 'C.ru', 'NRA': 'D|ru|',
@@ -3165,7 +3235,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
     set_ogrn = data_1[col_ogrn].unique()
     progress_text = "Operation in progress. Please wait."
     my_bar = st.progress(0, text=progress_text)
-    num_samples = 3000  # Количество выборок
+    num_samples = 5000  # Количество выборок
     # 1. Сбор переходов по объектам
     obj_transitions = defaultdict(lambda: defaultdict(int))
     # Основной цикл обработки
@@ -3221,7 +3291,7 @@ def calculate_discrete_migr_dirichlet(data: pd.DataFrame, agency: str, start_dat
             old_rank = agency_dict[from_rating]
             new_rank = agency_dict[to_rating]
             penalty = abs((new_rank - old_rank))
-            A = 0.3
+            A = 3
             if penalty == 0:
                 penalty = A
             # penalty = max(penalty, A)
@@ -3742,7 +3812,8 @@ def predict_next_ratings(current_ratings, transition_matrix, mode='deterministic
     return predicted_ratings
 
 def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
-                     step: dict, type_ogrn, type_date, type_rating):
+                     step: dict, type_ogrn, type_date, type_rating, type_field):
+
     agency_dict = {}
     if agency == 'Expert RA':
         agency_dict = expert_test
@@ -3822,6 +3893,7 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
     states_for_K_objects_fact = []
 
     # Собираем прогнозируемые рейтинги
+    data = data_test
     for obj in data[type_ogrn].unique():
         temp_ = data[data[type_ogrn] == obj]
         data_prev = temp_[temp_[type_date] <= date_to_check_pred].sort_values(by=type_ogrn)
@@ -3834,15 +3906,18 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
     for obj in data[type_ogrn].unique():
         temp_ = data[data[type_ogrn] == obj]
         data_prev = temp_[temp_[type_date] <= date_to_check_fact].sort_values(by=type_ogrn)
-        prev_rat, prev_date = get_prev_date_raitng(data_prev, obj, date_to_check_fact, step, type_ogrn, type_date,
+        prev_rat_, prev_date_ = get_prev_date_raitng(data_prev, obj, date_to_check_fact, step, type_ogrn, type_date,
                                                    type_rating)
-        if prev_rat is not None:
-            states_for_K_objects_fact.append({'ogrn': obj, 'rating': prev_rat})
+        if prev_rat_ is not None:
+            states_for_K_objects_fact.append({'ogrn': obj, 'rating': prev_rat_})
 
+    st.write('Fact', states_for_K_objects_fact)
+    st.write('Pred', states_for_K_objects_pred)
     # Преобразуем в DataFrame
     df_pred = pd.DataFrame(states_for_K_objects_pred)
     df_fact = pd.DataFrame(states_for_K_objects_fact)
 
+    dict_excel_res = {}
     # Подсчёт распределений
     states = list(agency_dict.keys())
     counter_pred = Counter(df_pred['rating'])
@@ -3872,24 +3947,60 @@ def metric_quality(data: pd.DataFrame, data_test: pd.DataFrame, agency: str, sta
         fact_filtered = df_fact[df_fact['ogrn'].isin(common_ogrn)].sort_values(by='ogrn')
         pred_filtered = df_pred[df_pred['ogrn'].isin(common_ogrn)].sort_values(by='ogrn')
 
-        from sklearn.metrics import accuracy_score, confusion_matrix, recall_score, precision_score
+        # Все возможные состояния
 
-        accuracy = accuracy_score(fact_filtered['rating'], pred_filtered['rating'])
+        # Получаем индивидуальные предсказания
+        transition_matrix = pd.DataFrame(transition_matrix, index=states, columns=states).div(transition_matrix.sum(axis=1), axis=0)
+        predicted_ratings = []
+        for r in fact_filtered['rating']:
+            if r in transition_matrix.index:  # Проверяем, что состояние есть в индексе
+                probs = transition_matrix.loc[r].values
+                predicted_next = np.random.choice(states, p=probs)
+                predicted_ratings.append(predicted_next)
+            else:
+                print(f"Не найдено состояние: {r}")  # Логируем, если не найдено состояние
+
+        from sklearn.metrics import accuracy_score, confusion_matrix, recall_score, precision_score, f1_score
+
+        st.write(fact_filtered['rating'], predicted_ratings)
+        accuracy = accuracy_score(fact_filtered['rating'], predicted_ratings)
         st.write(f"Accuracy: {accuracy:.4f}")
 
-        cm = confusion_matrix(fact_filtered['rating'], pred_filtered['rating'], labels=states)
+        cm = confusion_matrix(fact_filtered['rating'], predicted_ratings, labels=states)
         st.write("Confusion matrix:")
         st.write(cm)
 
-        recall = recall_score(fact_filtered['rating'], pred_filtered['rating'], average='macro')
-        st.write("Micro Recall (deterministic):", recall)
+        recall = recall_score(fact_filtered['rating'], predicted_ratings, average='macro')
+        st.write("Macro Recall (deterministic):", recall)
 
-        precision = precision_score(fact_filtered['rating'], pred_filtered['rating'], average='macro')
-        st.write("Micro Precision (deterministic):", precision)
+        precision = precision_score(fact_filtered['rating'], predicted_ratings, average='macro')
+        st.write("Macro Precision (deterministic):", precision)
+
+        f1_macro = f1_score(fact_filtered['rating'], predicted_ratings, average='macro')
+
+        st.write("Macro f1-score (deterministic):", f1_macro)
+
+        recall_micr = recall_score(fact_filtered['rating'], predicted_ratings, average='micro')
+        st.write("Micro Recall (deterministic):", recall_micr)
+
+        precision_micr = precision_score(fact_filtered['rating'], predicted_ratings, average='micro')
+        st.write("Macro Precision (deterministic):", precision_micr)
+
+        f1_micro = f1_score(fact_filtered['rating'], predicted_ratings, average='micro')
+
+        st.write("Macro f1-score (deterministic):", f1_micro)
+
+        recall_weighted = recall_score(fact_filtered['rating'], predicted_ratings, average='weighted')
+        st.write("weighted'Recall (deterministic):", recall_weighted)
+
+        precision_weighted = precision_score(fact_filtered['rating'], predicted_ratings, average='weighted')
+        st.write("weighted' Precision (deterministic):", precision_weighted)
+
+        f1_weighted = f1_score(fact_filtered['rating'], predicted_ratings, average='weighted')
+
+        st.write("weighted' f1-score (deterministic):", f1_weighted)
         # Прогнозируем следующие рейтинги (детерминированный подход)
-
-
-
+        pd.DataFrame([accuracy, recall, precision, f1_macro, recall_micr, precision_micr, f1_micro]).to_excel(f"result_quality/{agency}_{type_field}_{method}.xlsx")
         # todo ANOTHER METHOD
         print(fact_filtered['rating'])
         predicted = predict_next_ratings(fact_filtered['rating'], transition_matrix, mode='deterministic')
@@ -4216,6 +4327,19 @@ def calculate_second_order_with_dirichlet(
     # 0) Выбираем словарь рейтингов
     if agency == 'Expert RA':
         agency_dict = expert_test
+    elif agency == 'NCR':
+        agency_dict = NCR_test
+    elif agency == 'AKRA':
+        agency_dict = akra
+    elif agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    elif agency == 'Fitch Ratings':
+        agency_dict = fitch
+    elif agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    elif agency == 'NRA':
+        agency_dict = nra
+
     # ... остальные агентства ...
     else:
         raise ValueError(f"Unknown agency: {agency}")
@@ -4398,13 +4522,25 @@ def evaluate_prediction_with_k_power(
     return accuracy, cm, predicted_distribution, empirical_distribution_fact
 
 def matrix_second_order(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, scale: list,
-                     step: dict, type_ogrn, type_date, type_rating):
+                     step: dict, type_ogrn, type_date, type_rating, type_field_):
 
     st.title('Markov process of second order for factual transitions')
 
     agency_dict = {}
     if agency == 'Expert RA':
         agency_dict = expert_test
+    if agency == 'NCR':
+        agency_dict = NCR_test
+    if agency == 'AKRA':
+        agency_dict = akra
+    if agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    if agency == 'Fitch Ratings':
+        agency_dict = fitch
+    if agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    if agency == 'NRA':
+        agency_dict = nra
 
     date_ = str(st.date_input("Choose start date"))
     # full_dict = calculate_second_order(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
@@ -4535,10 +4671,18 @@ def matrix_second_order(data: pd.DataFrame, agency: str, start_date: str, end_da
         y_pred.append(z_pred)
         y_true.append(z_true)
 
-    from sklearn.metrics import accuracy_score, confusion_matrix
+    from sklearn.metrics import accuracy_score, confusion_matrix, recall_score, precision_score, f1_score
 
     # Считаем и выводим
     accuracy = accuracy_score(y_true, y_pred) if y_true else float('nan')
+    recall_macro = recall_score(y_true, y_pred, average="macro")
+    precision_macro = precision_score(y_true, y_pred, average="macro")
+    f1_macro = f1_score(y_true, y_pred, average="macro")
+    recall_micro = recall_score(y_true, y_pred, average="micro")
+    precision_micro = precision_score(y_true, y_pred, average="micro")
+    f1_micro = f1_score(y_true, y_pred, average="micro")
+    pd.DataFrame([accuracy, recall_macro, precision_macro, f1_macro, recall_micro, precision_micro, f1_micro]).to_excel(
+        f"result_quality/{agency}_{type_field_}_Second_order.xlsx")
     cm = confusion_matrix(y_true, y_pred, labels=list(agency_dict.keys()))
 
     st.write("Количество проверенных компаний:", len(y_true))
@@ -4719,13 +4863,15 @@ if __name__ == '__main__':
             migration_matrix_series(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
 
         if st.sidebar.checkbox('Markov model second order'):
-            matrix_second_order(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+            st.write("Choosen _ro_type", _ro_type)
+            matrix_second_order(data, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating, _ro_type)
 
         if st.sidebar.checkbox('Compare results by quality'):
-            data, data_test = train_test_split(data, test_size=0.1)
+            st.write("Choosen _ro_type", _ro_type)
+            data, data_test = train_test_split(data, test_size=0.2)
             data = data.reset_index(drop=True)
             data_test = data_test.reset_index(drop=True)
-            metric_quality(data, data_test, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating)
+            metric_quality(data, data_test, agency, start_date, end_date, scale, step, type_ogrn, type_date, type_rating, _ro_type)
 
         if st.sidebar.checkbox('Compare results'):
             n = st.number_input('Write number of each predict you want to do', min_value= 1, max_value = 1000)
