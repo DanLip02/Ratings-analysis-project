@@ -1,7 +1,7 @@
 from math import gamma
 from turtledemo.penrose import start
 
-import numba
+# import numba
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,7 +10,7 @@ import scipy.stats as stats
 import plotly.graph_objects as go
 import streamlit as st
 import seaborn as sns
-from django.db.models.expressions import result
+# from django.db.models.expressions import result
 from fitter import Fitter
 from pyvis.network import Network
 import streamlit.components.v1 as components
@@ -28,9 +28,10 @@ import statsmodels.api as sm
 import networkx as nx
 from scipy.stats import beta, alpha
 from numpy.random import dirichlet
+
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 # from current_test import alpha_prior, beta_prior, transitions
-from distribution_by_sector import expert_test
+# from distribution_by_sector import expert_test
 from sklearn.model_selection import train_test_split
 import time
 

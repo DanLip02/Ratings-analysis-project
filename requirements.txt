@@ -8,3 +8,6 @@ numpy
 pyvis
 networkx
 openpyxl
+numexpr
+scikit-learn
+statsmodels
