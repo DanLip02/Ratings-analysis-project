@@ -589,10 +589,13 @@ def fill_empty(dict_: dict, agency_dict: dict):
 
 
 def get_generator(result_df: pd.DataFrame) -> pd.DataFrame:
-    for i, v in enumerate(result_df.sum(axis=1)):
-        result_df.at[result_df.index[i], result_df.index[i]] = -v
+    Q = result_df.copy()
 
-    return result_df
+    for i in Q.index:
+        row_sum_off_diag = Q.loc[i].sum() - Q.loc[i, i]
+        Q.loc[i, i] = -row_sum_off_diag
+
+    return Q
 
 
 def get_nan_df(agency_dict):
@@ -1538,7 +1541,145 @@ def calculate_time_cont_migr_new(data: pd.DataFrame, agency: str, start_date: st
     my_bar_1.empty()
     return result_full
 
+def calculate_time_cont_migr_v2(
+    data: pd.DataFrame,
+    agency: str,
+    start_date: str,
+    end_dates: str,
+    step: dict,
+    col_ogrn: str,
+    col_date: str,
+    col_rating: str
+):
 
+    from collections import defaultdict
+    from datetime import datetime
+    import pandas as pd
+    import time
+
+    agency_dict = {}
+    if agency == 'Expert RA':
+        agency_dict = expert_test
+    if agency == 'NCR':
+        agency_dict = NCR_test
+    if agency == 'AKRA':
+        agency_dict = akra
+    if agency == 'S&P Global Ratings':
+        agency_dict = s_and_p
+    if agency == 'Fitch Ratings':
+        agency_dict = fitch
+    if agency == "Moody's Interfax Rating Agency":
+        agency_dict = moodys
+    if agency == 'NRA':
+        agency_dict = nra
+
+    time_scale = 1.0  # default = days
+
+    if 'months' in step.keys():
+        time_scale = 30.4375  # average month length
+    if 'years' in step.keys():
+        time_scale = 365.25
+    if 'days' in step.keys():
+        time_scale = 1.0
+
+    full_df = get_nan_df(agency_dict)
+
+    result_trans = {
+        prev: {cur: 0 for cur in full_df.columns}
+        for prev in full_df.columns
+    }
+
+    result_time = {
+        cur: 0.0 for cur in full_df.columns
+    }
+
+    data_1 = data.copy()
+    data_1[col_date] = pd.to_datetime(data_1[col_date])
+    start_date = pd.to_datetime(start_date)
+    end_dates = pd.to_datetime(end_dates)
+
+    # data_1 = data_1[
+    #     (data_1[col_date] >= start_date) &
+    #     (data_1[col_date] <= end_dates)
+    # ].sort_values([col_ogrn, col_date])
+
+    data_1 = data_1.sort_values([col_ogrn, col_date])
+
+    set_ogrn = data_1[col_ogrn].unique()
+
+    progress_text = "Calculate time cont. matrix. Please wait."
+    my_bar_1 = st.progress(0, text=progress_text)
+
+    counter = 0
+
+    for ogrn in set_ogrn:
+
+        time.sleep(0.005)
+        my_bar_1.progress(
+            int(100 * counter / len(set_ogrn)),
+            text=progress_text
+        )
+        counter += 1
+
+        pr = data_1[
+            data_1[col_ogrn] == ogrn
+        ].sort_values(col_date)
+
+        if len(pr) == 0:
+            continue
+
+        dates = pr[col_date].values
+        ratings = pr[col_rating].values
+
+        # Iterate over rating history
+        for i in range(len(pr) - 1):
+
+            prev_rating = ratings[i]
+            cur_rating = ratings[i + 1]
+
+            if prev_rating not in agency_dict:
+                continue
+
+            delta = dates[i + 1] - dates[i]
+            dt_days = delta / np.timedelta64(1, 'D')
+            dt = float(dt_days) / time_scale
+
+            if dt < 0:
+                continue
+
+            # Add exposure time
+            result_time[prev_rating] += dt
+
+            # Add transition count
+            if prev_rating != cur_rating and cur_rating in agency_dict:
+                result_trans[prev_rating][cur_rating] += 1
+
+        # Add tail exposure to end_date
+        last_rating = ratings[-1]
+        last_date = dates[-1]
+
+        if last_rating in agency_dict and last_date < end_dates:
+            dt_days = (end_dates - last_date).days
+            dt = dt_days / time_scale
+            if dt > 0:
+                result_time[last_rating] += dt
+
+    result_full = {}
+
+    for i in result_trans.keys():
+        result_full[i] = {}
+        Ti = result_time[i]
+
+        if Ti > 0:
+            for j in result_trans[i].keys():
+                result_full[i][j] = result_trans[i][j] / Ti
+        else:
+            for j in result_trans[i].keys():
+                result_full[i][j] = 0.0
+
+    my_bar_1.empty()
+
+    return result_full
 # TODO check scale
 def time_cont(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, step: dict, directory, type_ogrn, type_date, type_rating):
     st.title('Continuous-time Markov chain')
@@ -1564,7 +1705,7 @@ def time_cont(data: pd.DataFrame, agency: str, start_date: str, end_dates: str, 
 
     # Second attampt to find the best avarage of final matrix throw the entire period
     start_time = time.perf_counter()
-    result_full = calculate_time_cont_migr_new(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
+    result_full = calculate_time_cont_migr_v2(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
     # result_full = calculate_time_cont_migr(data, agency, start_date, end_dates, step, type_ogrn, type_date, type_rating)
     result_full = fill_empty(result_full, agency_dict)
     result_full_df = pd.DataFrame().from_dict(result_full).fillna(0).reset_index()
